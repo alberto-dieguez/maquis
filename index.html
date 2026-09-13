@@ -1,0 +1,2112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Maquis — La Resistencia</title>
+<style>
+  :root{
+    --bg:#1a1410;
+    --panel:#2a221c;
+    --panel-2:#3a2f25;
+    --paper:#f4e9d0;
+    --paper-2:#e8d8b8;
+    --ink:#2a1f15;
+    --gold:#c89b3c;
+    --resist:#dcdcdc;
+    --milice:#2e6fbf;
+    --soldier:#c0392b;
+    --intel:#2e6fbf;
+    --food:#27ae60;
+    --med:#f5f5f5;
+    --money:#f1c40f;
+    --weapon:#c0392b;
+    --explosive:#1a1a1a;
+    --morale:#e74c3c;
+    --day:#3498db;
+    --orange:#e67e22;
+    --good:#2ecc71;
+    --bad:#e74c3c;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{
+    background:var(--bg);
+    color:#e8dcc4;
+    font-family:Georgia, 'Times New Roman', serif;
+    overflow-x:hidden;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  body{padding-bottom:env(safe-area-inset-bottom);}
+
+  /* ===== HEADER ===== */
+  header{
+    background:linear-gradient(180deg,#3a2f25,#2a221c);
+    border-bottom:2px solid var(--gold);
+    padding:10px 12px;
+    display:flex;align-items:center;justify-content:space-between;
+    gap:10px;position:sticky;top:0;z-index:50;
+    box-shadow:0 2px 8px rgba(0,0,0,.6);
+  }
+  h1{font-size:1.1rem;color:var(--gold);letter-spacing:1px;}
+  .header-info{display:flex;gap:6px;align-items:center;font-size:.75rem;}
+  .pill{
+    background:var(--panel-2);
+    padding:4px 8px;border-radius:12px;
+    border:1px solid #555;color:#ddd;
+    display:flex;align-items:center;gap:4px;
+  }
+  .pill .dot{width:8px;height:8px;border-radius:50%;}
+  .pill .dot.morale{background:var(--morale);}
+  .pill .dot.day{background:var(--day);}
+  .pill .dot.soldier{background:var(--soldier);}
+  .pill .dot.resist{background:var(--resist);}
+
+  /* ===== TRACKS ===== */
+  .tracks{
+    display:flex;gap:8px;padding:8px;
+    background:var(--panel);
+    overflow-x:auto;
+  }
+  .track-card{
+    background:var(--panel-2);
+    border:1px solid #555;
+    border-radius:8px;
+    padding:6px 10px;
+    min-width:160px;
+    flex-shrink:0;
+  }
+  .track-card h3{font-size:.7rem;color:var(--gold);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px;}
+  .track-row{display:flex;align-items:center;gap:4px;overflow-x:auto;padding-bottom:2px;}
+  .track-cell{
+    width:24px;height:24px;
+    border:1px solid #555;border-radius:4px;
+    background:#1a1410;
+    color:#777;font-size:.65rem;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;position:relative;
+  }
+  .track-cell.active{background:var(--gold);color:#000;border-color:var(--gold);font-weight:bold;}
+  .track-cell.morale-cell.active{background:var(--morale);color:#fff;}
+  .track-cell.soldier-cell.active{background:var(--soldier);color:#fff;}
+  .track-cell.fail{background:#500;color:#aaa;}
+  .track-cell.fail.active{background:#a33;color:#fff;}
+  .track-cell .num{font-size:.6rem;}
+  .track-cell .morale-num{position:absolute;top:1px;left:2px;font-size:.55rem;color:#f88;font-weight:bold;}
+  .track-cell .patrol-num{position:absolute;bottom:1px;right:2px;font-size:.5rem;color:#8af;font-weight:bold;background:rgba(0,0,0,.4);padding:0 2px;border-radius:2px;}
+  .track-cell.morale-cell{width:42px;height:32px;}
+  .track-cell.morale-cell.ref{opacity:.55;border-style:dotted;}
+  .track-cell.morale-cell.ref .patrol-num{background:rgba(80,40,0,.5);}
+  .track-cell.morale-cell .patrol-num{color:#ffd;font-size:.55rem;background:rgba(139,0,0,.6);}
+  .track-cell.morale-cell.active .patrol-num{background:rgba(0,0,0,.5);}
+  .track-cell.morale-cell.start{position:relative;overflow:hidden;background:#a8b878;padding:0;}
+  .track-cell.morale-cell.start .start-band{
+    position:absolute;top:0;left:0;width:100%;height:100%;
+    background:linear-gradient(135deg,transparent 46%,#1a1410 46%,#1a1410 54%,transparent 54%);
+    pointer-events:none;z-index:1;
+  }
+  .track-cell.morale-cell.start .start-text{
+    position:absolute;top:0;left:1px;
+    font-size:.45rem;font-weight:bold;color:#000;
+    letter-spacing:.5px;z-index:0;
+  }
+  .track-cell.morale-cell.start .start-num{
+    position:absolute;top:0;right:3px;
+    font-size:.85rem;font-weight:bold;color:#fff;z-index:2;
+    text-shadow:1px 1px 2px rgba(0,0,0,.8);
+    line-height:1;
+  }
+  .track-cell.morale-cell.start .patrol-num{
+    position:absolute;bottom:1px;left:3px;z-index:2;
+    background:rgba(139,0,0,.7);font-size:.5rem;padding:0 3px;
+  }
+  .track-cell.morale-cell.start.active{background:#e74c3c;}
+  .track-cell.morale-cell.start.active .start-text{color:#fff;text-shadow:1px 1px 1px #000;}
+
+  /* ===== MAIN BOARD ===== */
+  main{padding:8px;display:grid;grid-template-columns:1fr;gap:8px;}
+  .section{
+    background:var(--panel);
+    border:1px solid #444;
+    border-radius:10px;
+    padding:8px;
+  }
+  .section h2{
+    font-size:.85rem;color:var(--gold);
+    text-transform:uppercase;letter-spacing:1.5px;
+    margin-bottom:8px;padding-bottom:4px;
+    border-bottom:1px solid #444;
+  }
+  /* ===== BOARD GRID ===== */
+  #board{
+    background:url('tablero.png') center/cover no-repeat;
+    border:3px solid #5a4525;
+    border-radius:8px;
+    position:relative;
+    width:100%;
+    max-width:560px;
+    margin:0 auto;
+    aspect-ratio:1/1.414; /* el PDF es vertical, ratio A4 */
+    overflow:hidden;
+    touch-action:manipulation;
+  }
+  .location{
+    position:absolute;
+    background:var(--paper-2);
+    border:2px solid #5a4525;
+    border-radius:6px;
+    padding:4px 2px;
+    text-align:center;
+    font-size:.6rem;
+    font-weight:bold;
+    color:var(--ink);
+    cursor:pointer;
+    transition:all .15s;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    line-height:1.1;
+    box-shadow:1px 1px 3px rgba(0,0,0,.3);
+    overflow:hidden;
+    word-break:break-word;
+  }
+  .location:active{transform:scale(.92);box-shadow:0 0 0 4px var(--gold),2px 2px 6px rgba(0,0,0,.5);}
+  .location.has-resist{box-shadow:0 0 0 3px var(--resist),1px 1px 3px rgba(0,0,0,.3);}
+  .location.has-milice{box-shadow:0 0 0 3px var(--milice),1px 1px 3px rgba(0,0,0,.3);}
+  .location.has-soldier{box-shadow:0 0 0 3px var(--soldier),1px 1px 3px rgba(0,0,0,.3);}
+  .location.has-resource::after{
+    content:'';position:absolute;top:1px;right:1px;
+    width:8px;height:8px;border-radius:50%;
+    background:var(--orange);
+    box-shadow:0 0 4px var(--orange);
+  }
+  .location .loc-name{font-size:.55rem;padding:0 2px;}
+  .location .icon{font-size:.9rem;line-height:1;}
+  .location.safe-house{background:#e8f4d8;border-color:#2a5a1a;color:#1a3a0a;}
+  .location.cafe{background:#e8d8c0;}
+  .location.spare-room-slot{
+    background:repeating-linear-gradient(45deg,#e8d8b8,#e8d8b8 4px,#d8c8a8 4px,#d8c8a8 8px);
+    border-style:dashed;
+  }
+  .location.mission-slot{
+    background:#f0d8a8;
+    border-color:#8a4a1a;
+  }
+  .units{
+    display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;justify-content:center;
+  }
+  /* Peanas tipo Carcassonne — meeple blanco estilizado */
+  .unit{
+    width:20px;height:24px;
+    background:radial-gradient(ellipse at 50% 25%,#fff 0%,#f0f0f0 40%,#c8c8c8 90%);
+    border-radius:50% 50% 40% 40%/55% 55% 45% 45%;
+    border:2px solid #1a1a1a;
+    box-shadow:0 2px 4px rgba(0,0,0,.7),inset 0 -2px 3px rgba(0,0,0,.15),inset 0 2px 3px rgba(255,255,255,.6);
+    position:relative;
+  }
+  .unit.resist::before{
+    content:'';position:absolute;top:-5px;left:50%;transform:translateX(-50%);
+    width:11px;height:11px;border-radius:50%;
+    background:radial-gradient(circle at 40% 30%,#fff 0%,#e8e8e8 100%);
+    border:2px solid #1a1a1a;
+  }
+  /* Milicia: peana azul */
+  .unit.milice{
+    background:radial-gradient(ellipse at 50% 25%,#5a9fdf 0%,#2e6fbf 40%,#1a4a8a 90%);
+    border:2px solid #0a1a3a;
+    box-shadow:0 2px 4px rgba(0,0,0,.7),inset 0 -2px 3px rgba(0,0,0,.3),inset 0 2px 3px rgba(255,255,255,.3);
+  }
+  .unit.milice::before{display:none;}
+  /* Soldado: peana roja */
+  .unit.soldier{
+    background:radial-gradient(ellipse at 50% 25%,#e85555 0%,#c0392b 40%,#7a1f1f 90%);
+    border:2px solid #3a0a0a;
+    box-shadow:0 2px 4px rgba(0,0,0,.7),inset 0 -2px 3px rgba(0,0,0,.3),inset 0 2px 3px rgba(255,255,255,.3);
+  }
+  .unit.soldier::before{display:none;}
+  .count-badge{
+    position:absolute;top:1px;left:1px;
+    background:#000;color:#fff;
+    font-size:.5rem;padding:0 3px;border-radius:8px;
+    line-height:1;
+  }
+
+  /* ===== RESOURCE TRAY ===== */
+  #resources{
+    display:grid;grid-template-columns:repeat(6,1fr);gap:4px;
+  }
+  .res{
+    background:var(--panel-2);
+    border-radius:6px;padding:4px 2px;
+    text-align:center;font-size:.7rem;
+    border:1px solid #555;
+    cursor:pointer;
+    transition:transform .1s;
+  }
+  .res:active{transform:scale(.95);}
+  .res .res-icon{font-size:1.2rem;display:block;}
+  .res .res-name{font-size:.55rem;color:#aaa;}
+  .res .res-count{font-weight:bold;color:var(--gold);font-size:.85rem;}
+  .res.zero{opacity:.4;}
+
+  /* ===== MISSIONS ===== */
+  .missions{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;}
+  .mission{
+    background:var(--paper);
+    color:var(--ink);
+    border-radius:6px;
+    padding:6px;
+    border:2px solid var(--gold);
+    font-size:.7rem;
+    line-height:1.3;
+  }
+  .mission.complete{border-color:var(--good);opacity:.7;}
+  .mission h4{
+    font-size:.85rem;color:var(--gold);
+    border-bottom:1px solid var(--gold);
+    margin-bottom:4px;padding-bottom:2px;
+    color:#5a4525;
+  }
+  .mission .tasks{display:flex;flex-direction:column;gap:3px;margin-top:4px;}
+  .task{
+    display:flex;align-items:center;gap:4px;
+    padding:2px 4px;border:1px solid #5a4525;
+    border-radius:3px;font-size:.65rem;
+    background:rgba(255,255,255,.3);
+    cursor:pointer;
+  }
+  .task.done{background:rgba(46,204,113,.3);text-decoration:line-through;}
+  .task .task-num{
+    background:var(--gold);color:#000;
+    width:14px;height:14px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.65rem;font-weight:bold;flex-shrink:0;
+  }
+  .task .task-cost{margin-left:auto;font-size:.6rem;color:#5a4525;}
+
+  /* ===== PATROL ===== */
+  #patrol-pile{display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;}
+  .patrol-card{
+    background:#3a4f8a;color:#fff;
+    border:2px solid #1a2a5a;
+    border-radius:6px;
+    padding:6px;min-width:90px;max-width:90px;
+    font-size:.65rem;cursor:pointer;
+    text-align:center;
+    box-shadow:1px 1px 4px rgba(0,0,0,.4);
+  }
+  .patrol-card.back{background:linear-gradient(45deg,#1a2a5a 25%,transparent 25%),linear-gradient(-45deg,#1a2a5a 25%,transparent 25%);background-size:8px 8px;background-color:#2a3a6a;color:transparent;}
+  .patrol-card .pc-loc{
+    background:rgba(0,0,0,.3);
+    margin:2px 0;padding:2px;border-radius:3px;
+    font-size:.6rem;
+  }
+  .patrol-card .pc-label{font-weight:bold;color:var(--gold);font-size:.7rem;}
+
+  /* ===== SPARE ROOMS ===== */
+  #spare-rooms{display:flex;gap:4px;flex-wrap:wrap;}
+  .spare-room{
+    background:#5a4525;color:var(--paper);
+    border:2px solid #8a6a35;
+    border-radius:6px;
+    padding:6px;
+    font-size:.7rem;text-align:center;
+    cursor:pointer;
+    flex:1;min-width:90px;
+    transition:transform .1s;
+  }
+  .spare-room:active{transform:scale(.96);}
+  .spare-room.placed{opacity:.4;pointer-events:none;text-decoration:line-through;}
+  .spare-room .sr-icon{font-size:1.2rem;display:block;}
+  .spare-room .sr-name{font-weight:bold;color:var(--gold);}
+
+  /* ===== ACTIONS / BUTTONS ===== */
+  .actions{display:flex;gap:6px;flex-wrap:wrap;}
+  .btn{
+    background:var(--panel-2);
+    color:var(--paper);
+    border:2px solid var(--gold);
+    border-radius:6px;
+    padding:8px 12px;
+    font-size:.8rem;
+    font-family:inherit;
+    cursor:pointer;
+    transition:all .15s;
+    flex:1;
+  }
+  .btn:active{background:var(--gold);color:#000;transform:scale(.96);}
+  .btn.primary{background:var(--gold);color:#000;font-weight:bold;}
+  .btn.danger{border-color:var(--bad);color:var(--bad);}
+  .btn.good{border-color:var(--good);color:var(--good);}
+  .btn:disabled{opacity:.4;pointer-events:none;}
+
+  /* ===== MODAL ===== */
+  .modal-bg{
+    position:fixed;inset:0;
+    background:rgba(0,0,0,.85);
+    display:flex;align-items:center;justify-content:center;
+    z-index:100;padding:12px;
+  }
+  .modal{
+    background:var(--panel);
+    border:2px solid var(--gold);
+    border-radius:10px;
+    padding:14px;
+    max-width:340px;width:100%;
+    max-height:80vh;overflow-y:auto;
+  }
+  .modal h3{color:var(--gold);margin-bottom:8px;font-size:1rem;}
+  .modal p{margin-bottom:8px;font-size:.8rem;line-height:1.4;}
+  .modal .modal-actions{display:flex;gap:6px;margin-top:10px;}
+  .modal .option{
+    background:var(--panel-2);
+    border:1px solid #555;
+    border-radius:4px;
+    padding:6px 8px;
+    margin:3px 0;
+    cursor:pointer;
+    font-size:.75rem;
+    width:100%;
+    text-align:left;
+    color:var(--paper);
+  }
+  .modal .option:active{background:var(--gold);color:#000;}
+
+  /* ===== LOG ===== */
+  #log{
+    background:#000;color:#cfc;
+    border:1px solid #333;
+    border-radius:6px;
+    padding:6px;
+    font-family:monospace;
+    font-size:.65rem;
+    max-height:120px;
+    overflow-y:auto;
+    line-height:1.4;
+  }
+  #log .l-resist{color:#fff;}
+  #log .l-patrol{color:#6af;}
+  #log .l-bad{color:#f88;}
+  #log .l-good{color:#8f8;}
+  #log .l-info{color:#fc8;}
+
+  /* ===== PHASE ===== */
+  .phase-banner{
+    background:linear-gradient(90deg,var(--gold),#a87a2c);
+    color:#000;
+    padding:6px 12px;
+    text-align:center;
+    font-weight:bold;
+    text-transform:uppercase;
+    letter-spacing:2px;
+    font-size:.85rem;
+  }
+
+  /* ===== UNITS OVERVIEW ===== */
+  #units-overview{
+    display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+  }
+  .unit-card{
+    background:var(--panel-2);
+    border-radius:6px;
+    padding:6px;
+    text-align:center;
+  }
+  .unit-card .uc-icon{
+    width:22px;height:26px;margin:0 auto 4px;
+    background:radial-gradient(ellipse at 50% 25%,#fff 0%,#f0f0f0 40%,#c8c8c8 90%);
+    border-radius:50% 50% 40% 40%/55% 55% 45% 45%;
+    border:2px solid #1a1a1a;
+    box-shadow:0 2px 4px rgba(0,0,0,.6),inset 0 -2px 3px rgba(0,0,0,.15),inset 0 2px 3px rgba(255,255,255,.6);
+    position:relative;
+  }
+  .unit-card .uc-icon::before{
+    content:'';position:absolute;top:-6px;left:50%;transform:translateX(-50%);
+    width:12px;height:12px;border-radius:50%;
+    background:radial-gradient(circle at 40% 30%,#fff 0%,#e8e8e8 100%);
+    border:2px solid #1a1a1a;
+  }
+  .unit-card .uc-icon.milice{
+    background:radial-gradient(circle at 50% 30%,#5a9fdf 0%,#2e6fbf 60%,#1a4a8a 100%);
+    border-color:#1a2a5a;
+  }
+  .unit-card .uc-icon.milice::before{display:none;}
+  .unit-card .uc-icon.soldier{
+    background:radial-gradient(circle at 50% 30%,#e85555 0%,#c0392b 60%,#8a1f1f 100%);
+    border-color:#5a0f0f;
+  }
+  .unit-card .uc-icon.soldier::before{display:none;}
+  .unit-card .uc-count{font-size:1.1rem;font-weight:bold;color:var(--gold);}
+  .unit-card .uc-label{font-size:.6rem;color:#aaa;}
+
+  /* ===== MOBILE OPTIMIZATIONS ===== */
+  @media(max-width:480px){
+    h1{font-size:.95rem;}
+    .track-card{min-width:130px;}
+    .location .loc-name{font-size:.5rem;}
+    .patrol-card{min-width:80px;max-width:80px;}
+    .mission{font-size:.65rem;}
+  }
+  @media(min-width:600px){
+    main{grid-template-columns:1fr 1fr;}
+    .full{grid-column:1/-1;}
+    #board{max-width:560px;margin:0 auto;}
+  }
+
+  /* ===== ROTATION OVERLAY ===== */
+  #rotate-overlay{
+    display:none;
+    position:fixed;inset:0;z-index:9999;
+    background:rgba(26,20,16,.97);
+    color:var(--paper);
+    flex-direction:column;
+    align-items:center;justify-content:center;
+    text-align:center;padding:20px;
+  }
+  #rotate-overlay .ro-icon{font-size:4rem;animation:rotatePhone 2s ease-in-out infinite;}
+  #rotate-overlay h2{color:var(--gold);margin:16px 0 8px;}
+  #rotate-overlay p{font-size:.9rem;color:#ccc;max-width:280px;margin-bottom:20px;}
+  #rotate-overlay button{
+    background:var(--gold);color:#000;border:none;
+    padding:12px 24px;border-radius:8px;
+    font-size:1rem;font-weight:bold;cursor:pointer;
+  }
+  @keyframes rotatePhone{
+    0%,100%{transform:rotate(0deg);}
+    50%{transform:rotate(90deg);}
+  }
+  /* Mostrar overlay solo en portrait móvil */
+  @media (orientation:portrait) and (max-width:900px){
+    body.portrait #rotate-overlay{display:flex;}
+  }
+  /* En vertical: tablero más compacto y no sticky */
+  @media (orientation:portrait){
+    header{position:relative;}
+    .tracks{padding:6px;}
+  }
+  /* En landscape: layout optimizado */
+  @media (orientation:landscape) and (max-height:500px){
+    header{position:relative;padding:6px 10px;}
+    h1{font-size:.9rem;}
+    .phase-banner{padding:4px;font-size:.75rem;letter-spacing:1px;}
+    .tracks{padding:4px;}
+    .track-card{padding:3px 6px;min-width:130px;}
+    .track-card h3{font-size:.6rem;margin-bottom:2px;}
+    .track-cell{width:18px;height:18px;font-size:.55rem;}
+    main{padding:6px;gap:6px;grid-template-columns:1fr 1fr;}
+    #board{max-width:none;width:100%;}
+    .section{padding:6px;}
+    .section h2{font-size:.75rem;margin-bottom:4px;}
+    .pill{padding:3px 6px;font-size:.65rem;}
+    .res{padding:3px 1px;}
+    .res .res-icon{font-size:1rem;}
+    .res .res-name{font-size:.5rem;}
+    .res .res-count{font-size:.75rem;}
+    .mission{padding:5px;font-size:.65rem;}
+    .mission h4{font-size:.75rem;}
+    .task{font-size:.6rem;padding:2px 3px;}
+    .patrol-card{min-width:75px;max-width:75px;padding:4px;font-size:.6rem;}
+    .pc-loc{font-size:.55rem;}
+    .spare-room{padding:4px;font-size:.65rem;}
+    .spare-room .sr-icon{font-size:1rem;}
+    #log{max-height:80px;font-size:.6rem;}
+    .btn{padding:6px 10px;font-size:.75rem;}
+    .unit-card{padding:4px;}
+    .unit-card .uc-icon{font-size:1rem;}
+    .unit-card .uc-count{font-size:.9rem;}
+    .unit-card .uc-label{font-size:.55rem;}
+  }
+  /* Tablets y escritorio */
+  @media (min-width:900px){
+    main{max-width:1100px;margin:0 auto;grid-template-columns:1fr 1fr;}
+    .full{grid-column:1/-1;}
+    #board{max-width:520px;margin:0 auto;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>★ MAQUIS ★</h1>
+  <div class="header-info">
+    <div class="pill"><span class="dot day"></span><span id="hdr-day">Día 1</span></div>
+    <div class="pill"><span class="dot morale"></span><span id="hdr-morale">Moral 7</span></div>
+    <div class="pill"><span class="dot soldier"></span><span id="hdr-soldier">S 1</span></div>
+  </div>
+</header>
+
+<div class="phase-banner" id="phase">FASE DE COLOCACIÓN</div>
+
+<!-- TRACKS -->
+<div class="tracks">
+  <div class="track-card">
+    <h3>📅 Día</h3>
+    <div class="track-row" id="track-day"></div>
+  </div>
+  <div class="track-card">
+    <h3>❤️ Moral</h3>
+    <div class="track-row" id="track-morale"></div>
+  </div>
+  <div class="track-card">
+    <h3>⚔️ Soldados</h3>
+    <div class="track-row" id="track-soldier"></div>
+  </div>
+</div>
+
+<main>
+
+  <!-- BOARD -->
+  <section class="section full">
+    <h2>🗺️ Tablero — Toca una ubicación</h2>
+    <div id="board"></div>
+  </section>
+
+  <!-- UNITS OVERVIEW -->
+  <section class="section">
+    <h2>👥 Unidades</h2>
+    <div id="units-overview"></div>
+  </section>
+
+  <!-- RESOURCES -->
+  <section class="section">
+    <h2>📦 Recursos <span style="font-size:.6rem;color:#888">(toca para usar)</span></h2>
+    <div id="resources"></div>
+  </section>
+
+  <!-- MISSIONS -->
+  <section class="section full">
+    <h2>🎯 Misiones (coloca un trabajador en la salida de arriba para actuar)</h2>
+    <div class="missions" id="missions"></div>
+  </section>
+
+  <!-- PATROL DECK -->
+  <section class="section">
+    <h2>🃏 Mazo de Patrulla</h2>
+    <div id="patrol-pile"></div>
+  </section>
+
+  <!-- SPARE ROOMS -->
+  <section class="section">
+    <h2>🏠 Habitaciones Libres</h2>
+    <div id="spare-rooms"></div>
+  </section>
+
+  <!-- ACTIONS -->
+  <section class="section full">
+    <h2>⚙️ Acciones del Día</h2>
+    <div class="actions" id="day-actions"></div>
+  </section>
+
+  <!-- LOG -->
+  <section class="section full">
+    <h2>📜 Diario</h2>
+    <div id="log"></div>
+  </section>
+
+</main>
+
+<!-- ROTATION OVERLAY -->
+<div id="rotate-overlay">
+  <div class="ro-icon">📱</div>
+  <h2>Gira tu móvil</h2>
+  <p>Maquis se juega mejor en <b>horizontal</b> — verás todo el tablero sin hacer scroll.</p>
+  <button onclick="forceLandscape()">Entendido, seguir en vertical</button>
+</div>
+
+<!-- MODAL -->
+<div id="modal-bg" class="modal-bg" style="display:none">
+  <div id="modal" class="modal"></div>
+</div>
+
+<script>
+/* ===================================================================
+   MAQUIS — JUEGO COMPLETO
+   =================================================================== */
+
+/* ===== DATA ===== */
+
+// Localizaciones del tablero (id, nombre, x%, y%, acciones)
+// Posiciones según el mapa oficial en español (PDF A4 vertical)
+// El mapa tiene 2 mitades apiladas verticalmente; el track de día está abajo
+// y la Safe House principal está en la parte inferior-central
+const LOCATIONS = [
+  // === MITAD INFERIOR DEL MAPA (parte de arriba del PDF) ===
+  // Esta mitad contiene: PONT DU NORD, BARRIO BAJO, PONT LÉVÊQUE, CASA SEGURA, CAFÉ
+  {id:'radio_b',name:'RADIO B',x:14,y:14,icon:'📻',actions:['intel']},
+  {id:'spare_room_field1',name:'PISO FRANCO',x:28,y:14,icon:'🏠',spare:true},
+  {id:'field_b',name:'CAMPO',x:42,y:14,icon:'🌾',field:true},
+  {id:'mission_right',name:'★ MISIÓN II ★',x:56,y:14,icon:'🎯',missionSlot:true},
+  {id:'grocer',name:'ABACERO',x:88,y:14,icon:'🛍️',actions:['food']},
+
+  {id:'pont_du_nord',name:'PONT DU NORD',x:14,y:22,icon:'🌉',actions:['move']},
+  {id:'spare_room_center',name:'PISO FRANCO',x:30,y:22,icon:'🏠',spare:true},
+  {id:'cafe',name:'CAFÉ',x:88,y:22,icon:'☕',actions:['recruit'],cafe:true},
+
+  {id:'fence',name:'VALLA',x:14,y:30,icon:'🚧',actions:['escape']},
+  {id:'doctor',name:'DOCTOR',x:50,y:30,icon:'⚕️',actions:['medicine']},
+  {id:'mission_left',name:'★ MISIÓN I ★',x:60,y:30,icon:'🎯',missionSlot:true},
+  {id:'pont_leveque',name:'PONT LÉVÊQUE',x:88,y:30,icon:'🌉',actions:['move']},
+
+  // === MITAD SUPERIOR DEL MAPA (parte de abajo del PDF) ===
+  // Contiene: VALLA, PISO FRANCO, CAFÉ, DOCTOR, PONT DU NORD, RADIO A, RUE BARADAT, EXTRAMUROS, MERCADO NEGRO
+  {id:'safe_house',name:'CASA SEGURA',x:50,y:75,icon:'🏡',safe:true,actions:['spare_safe']},
+  {id:'spare_room_bottom',name:'PISO FRANCO',x:18,y:75,icon:'🏠',spare:true},
+  {id:'field_c',name:'CAMPO',x:88,y:75,icon:'🌾',field:true},
+
+  {id:'radio_a',name:'RADIO A',x:14,y:85,icon:'📻',actions:['intel']},
+  {id:'rue_baradat',name:'RUE BARADAT',x:50,y:85,icon:'🏘️',actions:['money']},
+  {id:'spare_room_radio',name:'PISO FRANCO',x:32,y:85,icon:'🏠',spare:true},
+  {id:'poor_district',name:'EXTRAMUROS',x:72,y:85,icon:'🏚️',actions:['food']},
+  {id:'black_market',name:'MERCADO NEGRO',x:88,y:85,icon:'🛒',actions:['barter']},
+  {id:'safe_house_top',name:'CASA SEGURA',x:50,y:50,icon:'🏡',safe:true},
+  {id:'field_a',name:'CAMPO',x:88,y:50,icon:'🌾',field:true},
+];
+
+// Conexiones (rutas blancas) — grafo no dirigido
+const CONNECTIONS = [
+  // Fila superior
+  ['radio_a','spare_room_radio'],
+  ['spare_room_radio','rue_baradat'],
+  ['rue_baradat','poor_district'],
+  ['poor_district','black_market'],
+  ['black_market','radio_b'],
+  ['radio_b','spare_room_field1'],
+  ['spare_room_field1','field_a'],
+
+  // Conexiones verticales superiores
+  ['radio_a','pont_du_nord'],
+  ['spare_room_radio','safe_house_top'],
+  ['rue_baradat','cafe'],
+  ['poor_district','mission_left'],
+  ['black_market','doctor'],
+  ['radio_b','pont_leveque'],
+  ['spare_room_field1','field_a'],
+
+  // Fila central
+  ['pont_du_nord','fence'],
+  ['fence','spare_room_center'],
+  ['spare_room_center','cafe'],
+  ['cafe','mission_left'],
+  ['mission_left','doctor'],
+  ['doctor','pont_leveque'],
+  ['pont_leveque','field_a'],
+  ['safe_house_top','cafe'],
+
+  // Conexiones verticales centrales
+  ['fence','field_b'],
+  ['spare_room_center','mission_right'],
+  ['cafe','mission_right'],
+  ['mission_right','grocer'],
+  ['doctor','grocer'],
+  ['pont_leveque','field_c'],
+
+  // Fila inferior
+  ['field_b','spare_room_bottom'],
+  ['spare_room_bottom','safe_house'],
+  ['safe_house','mission_right'],
+  ['safe_house','grocer'],
+  ['mission_right','grocer'],
+  ['grocer','field_c'],
+];
+
+// Cartas de Misión (con tareas numeradas)
+const MISSION_CARDS = [
+  {
+    id:'aid_spy',name:'AYUDAR AL ESPÍA',
+    desc:'Un espía británico necesita tu equipo.',
+    tasks:[
+      {n:1,cost:{medicine:1},label:'Medicinas'},
+      {n:1,cost:{explosive:1},label:'Explosivos'},
+      {n:2,cost:{weapon:1},label:'Armas'},
+      {n:2,cost:{intel:1},label:'Información'},
+    ]
+  },
+  {
+    id:'destroy_train',name:'DESTRUIR EL TREN',
+    desc:'Volarlo en turnos 6-9. (Cualquier turno en modo Muy Fácil)',
+    turnRange:[6,9],
+    tasks:[
+      {n:1,cost:{explosive:1},label:'1 Explosivo'},
+      {n:1,cost:{explosive:1},label:'1 Explosivo'},
+      {n:2,cost:{explosive:1},label:'1 Explosivo'},
+    ]
+  },
+  {
+    id:'assassination',name:'ASESINATO',
+    desc:'Primero completa tu otra misión, luego elimina Milicias hasta que solo haya Soldados.',
+    tasks:[
+      {n:1,cost:{weapon:1},label:'Arma'},
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:2,cost:{weapon:1},label:'Arma'},
+      {n:2,cost:{weapon:1},label:'Arma'},
+    ]
+  },
+  {
+    id:'liberate_town',name:'LIBERAR LA CIUDAD',
+    desc:'Final con ≥3 Armas y 4 Moral.',
+    endRequirement:true,
+    tasks:[
+      {n:1,cost:{weapon:1},label:'Armas'},
+      {n:1,cost:{weapon:1},label:'Armas'},
+      {n:1,cost:{weapon:1},label:'Armas'},
+    ]
+  },
+  {
+    id:'sabotage',name:'SABOTAJE',
+    desc:'Infiltrar la fábrica y sabotearla.',
+    tasks:[
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:2,cost:{explosive:1},label:'Explosivos'},
+    ]
+  },
+  {
+    id:'underground_news',name:'PERIÓDICO CLANDESTINO',
+    desc:'Informa a la población.',
+    tasks:[
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{money:1},label:'Moneda'},
+      {n:2,cost:{intel:1},label:'Información'},
+    ]
+  },
+  {
+    id:'german_shepherds',name:'PASTORES ALEMANES',
+    desc:'¡Alimenta a los perros del enemigo!',
+    tasks:[
+      {n:1,cost:{food:2},label:'2 Comida'},
+      {n:2,cost:{food:2},label:'2 Comida'},
+    ]
+  },
+  {
+    id:'infiltration',name:'INFILTRACIÓN',
+    desc:'Infiltrarse sin ser detectado.',
+    tasks:[
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{money:1},label:'Moneda'},
+      {n:2,cost:{intel:1},label:'Información'},
+      {n:2,cost:{weapon:1},label:'Arma'},
+    ]
+  },
+  {
+    id:'take_out_bridges',name:'DESTRUIR PUENTES',
+    desc:'Voladura en turnos 6-9.',
+    turnRange:[6,9],
+    tasks:[
+      {n:1,cost:{explosive:1},label:'Explosivo'},
+      {n:1,cost:{explosive:1},label:'Explosivo'},
+      {n:2,cost:{explosive:1},label:'Explosivo'},
+    ]
+  },
+  {
+    id:'bomb_officer',name:'BOMBA PARA EL OFICIAL',
+    desc:'Objetivo de alto valor.',
+    tasks:[
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{explosive:1},label:'Explosivo'},
+      {n:2,cost:{weapon:1},label:'Arma'},
+    ]
+  },
+  {
+    id:'milice_parade',name:'DESFILE DE LA MILICIA',
+    desc:'Acosar al desfile.',
+    tasks:[
+      {n:1,cost:{weapon:1},label:'Arma'},
+      {n:1,cost:{money:1},label:'Moneda'},
+      {n:2,cost:{intel:1},label:'Información'},
+    ]
+  },
+  {
+    id:'officer_mansion',name:'MANSIÓN DEL OFICIAL',
+    desc:'Robar documentos.',
+    tasks:[
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:2,cost:{money:1},label:'Moneda'},
+    ]
+  },
+  {
+    id:'coded_messages',name:'MENSAJES CIFRADOS',
+    desc:'Descifrar mensajes.',
+    tasks:[
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:1,cost:{intel:1},label:'Información'},
+      {n:2,cost:{intel:1},label:'Información'},
+    ]
+  },
+  {
+    id:'double_agent',name:'AGENTE DOBLE',
+    desc:'Reclutar a un Miliciano.',
+    tasks:[
+      {n:1,cost:{money:2},label:'2 Moneda'},
+      {n:2,cost:{intel:1},label:'Información'},
+    ]
+  },
+];
+
+// Cartas de Patrulla (10 cartas)
+const PATROL_CARDS = [
+  {locs:['doctor','poor_district','radio_a']},
+  {locs:['grocer','black_market','radio_b']},
+  {locs:['pont_leveque','pont_du_nord','doctor']},
+  {locs:['radio_a','pont_leveque','black_market']},
+  {locs:['fence','rue_baradat','poor_district']},
+  {locs:['grocer','pont_du_nord','fence']},
+  {locs:['radio_b','rue_baradat','pont_leveque']},
+  {locs:['pont_leveque','black_market','doctor']},
+  {locs:['radio_a','rue_baradat','grocer']},
+  {locs:['fence','pont_du_nord','pont_leveque']},
+];
+
+// Habitaciones Libres
+const SPARE_ROOMS = [
+  {id:'safe_house',name:'Casa Segura',icon:'🏡',desc:'Actúa como 2ª Casa Segura',effect:'safe_house'},
+  {id:'counterfeitter',name:'Falsificador',icon:'💰',desc:'1 Moneda al activarla',effect:'money'},
+  {id:'informant',name:'Informante',icon:'🕵️',desc:'1 Información al activarla',effect:'intel'},
+  {id:'smuggler',name:'Contrabandista',icon:'📦',desc:'1 Comida o 1 Medicina',effect:'food_or_med'},
+  {id:'chemist',name:'Laboratorio',icon:'⚗️',desc:'1 Explosivo al activarla',effect:'explosive'},
+  {id:'propagandist',name:'Propagandista',icon:'📜',desc:'+1 Moral al activarla',effect:'morale'},
+];
+
+// Recursos
+const RESOURCE_DEFS = [
+  {id:'intel',name:'Información',icon:'🔵',color:'var(--intel)'},
+  {id:'food',name:'Comida',icon:'🟢',color:'var(--food)'},
+  {id:'medicine',name:'Medicina',icon:'⚪',color:'var(--med)'},
+  {id:'money',name:'Moneda',icon:'🟡',color:'var(--money)'},
+  {id:'weapon',name:'Arma',icon:'🔴',color:'var(--weapon)'},
+  {id:'explosive',name:'Explosivo',icon:'⚫',color:'var(--explosive)'},
+];
+
+// Track de día — orden oficial del tablero (15 días total, 14 espacios + END)
+// orange (*) = al entrar en ese día, -1 Moral.
+// Del mapa oficial: días con asterisco = 2, 5, 8, 10, 12
+const DAY_TRACK = [
+  {n:1},
+  {n:2,orange:true},   // *2
+  {n:3},
+  {n:4},
+  {n:5,orange:true},   // *5
+  {n:6},
+  {n:7},
+  {n:8,orange:true},   // *8
+  {n:9},
+  {n:10,orange:true},  // *10
+  {n:11},
+  {n:12,orange:true},  // *12
+  {n:13},
+  {n:14},
+  {n:15,end:true},     // END
+];
+
+// Track de Moral — el marcador se mueve de START (6) hacia FAIL al perder moral.
+// Se renderiza en 2 filas según el mapa físico oficial:
+// Fila 1 (izq → der): FAIL, 1, 2, 3
+// Fila 2 (izq → der): 4, 5, START(6), 7
+// La celda "7" del mapa físico es informativa (valor máximo) pero NO se usa en la
+// lógica del juego — el START ya equivale a Moral 6.
+const MORALE_TRACK = [
+  {m:6,p:3,start:true},                // idx 0: START — Moral 6
+  {m:5,p:3},                            // idx 1
+  {m:4,p:4},                            // idx 2
+  {m:3,p:4},                            // idx 3
+  {m:2,p:4},                            // idx 4
+  {m:1,p:5},                            // idx 5
+  {m:0,fail:true},                      // idx 6: FAIL
+];
+// Posición física de cada celda (visual)
+// Fila 1 visual: FAIL, 1, 2, 3  →  índices de juego: [6, 5, 4, 3]
+// Fila 2 visual: 4, 5, START, 7  →  índices de juego: [2, 1, 0, -1(=7)]
+const MORALE_VISUAL_7 = {m:7,p:2,reference:true}; // Celda "7" informativa
+
+// Track de Soldados (0=start, 1-5)
+// Según el manual: avanza cuando eliminas Milicias. Cada avance = -1 Moral
+const SOLDIER_TRACK = [{n:0,start:true},{n:1},{n:2},{n:3},{n:4},{n:5}];
+
+/* ===== STATE ===== */
+let G = {
+  phase:'placement',     // placement | action | maintenance | gameover
+  day:1,
+  moraleIdx:0,          // 0=7, 7=0 fail
+  soldierIdx:0,
+  placementTurn:'resist',// resist | patrol
+  placementCount:0,     // cuántos colocados este día
+  totalPatrols:0,
+  placedResist:[],      // ids en tablero
+  placedMilice:[],      // ids en tablero (mapa id->count)
+  placedSoldiers:[],    // ids en tablero
+  airdrops:{},          // locationId -> {resources}
+  sparePlaced:{},       // locationId -> spareRoomId
+  spareActions:{},      // spareRoomId -> 'money'|'intel'|... (si tiene acción ya gastada)
+  resources:{intel:0,food:0,medicine:0,money:0,weapon:0,explosive:0},
+  availableResist:3,    // en Casa Segura inferior
+  cafeResist:2,         // en Café (reclutables)
+  totalRecruitedLost:0,
+  missions:[],          // 2 cartas activas
+  missionProgress:[{},{}], // {taskIdx: done}
+  missionOrder:[],      // orden de prioridad
+  patrolDeck:[],
+  patrolDiscard:[],
+  currentPatrolCard:null,
+  firedWeapon:false,
+  activatedThisDay:[],  // ids de workers ya activados
+  log:[],
+};
+
+/* ===== HELPERS ===== */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => document.querySelectorAll(sel);
+
+function log(msg, type='info'){
+  G.log.unshift({msg, type});
+  if(G.log.length>50) G.log.pop();
+  const el = $('#log');
+  el.innerHTML = G.log.map(l=>`<div class="l-${l.type}">${l.msg}</div>`).join('');
+}
+
+function shuffle(arr){
+  const a = [...arr];
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+
+function showModal(html){
+  $('#modal').innerHTML = html;
+  $('#modal-bg').style.display = 'flex';
+}
+function closeModal(){
+  $('#modal-bg').style.display = 'none';
+}
+
+function locById(id){return LOCATIONS.find(l=>l.id===id);}
+
+function unitsAt(locId){
+  let r = 0, m = 0, s = 0;
+  if(G.placedResist.includes(locId)) r = countResistAt(locId);
+  if(G.placedMilice[locId]) m = G.placedMilice[locId];
+  if(G.placedSoldiers[locId]) s = G.placedSoldiers[locId];
+  return {r,m,s};
+}
+function countResistAt(locId){
+  return G.placedResist.filter(x=>x===locId).length;
+}
+function isOccupied(locId){
+  const u = unitsAt(locId);
+  return u.r>0 || u.m>0 || u.s>0;
+}
+
+/* ===== INIT ===== */
+function newGame(){
+  G.phase='placement';
+  G.day=1;
+  G.moraleIdx=0;
+  G.soldierIdx=0;
+  G.placementTurn='resist';
+  G.placementCount=0;
+  G.totalPatrols=0;
+  G.placedResist=['safe_house','safe_house','safe_house']; // 3 workers visibles en Casa Segura
+  G.placedMilice={};
+  G.placedSoldiers={};
+  G.airdrops={};
+  G.sparePlaced={};
+  G.spareActions={};
+  G.resources={intel:0,food:0,medicine:0,money:0,weapon:0,explosive:0};
+  G.availableResist=3;
+  G.cafeResist=2;
+  G.missions = shuffle(MISSION_CARDS).slice(0,2);
+  G.missionProgress=[{},{}];
+  G.missionOrder=[0,1];
+  G.patrolDeck = shuffle(PATROL_CARDS);
+  G.patrolDiscard=[];
+  G.currentPatrolCard=null;
+  G.firedWeapon=false;
+  G.activatedThisDay=[];
+  G.log=[];
+
+  log('★ Nueva partida. Día 1. 3 trabajadores disponibles en Casa Segura','good');
+  renderAll();
+  startPlacement();
+  // Modal de bienvenida
+  setTimeout(()=>showModal(`
+    <h3>★ MAQUIS ★</h3>
+    <p>Eres un miembro de la Resistencia Francesa en la Segunda Guerra Mundial.</p>
+    <p>Tienes <b>15 días</b> para completar <b>2 misiones</b>.</p>
+    <p style="font-size:.7rem;color:#aaa">Tienes 3 trabajadores en Casa Segura (visibles en el tablero) y 2 reclutas en el Café. Toca una ubicación para colocar a uno durante la COLOCACIÓN.</p>
+    <div class="modal-actions"><button class="btn primary" onclick="closeModal()">¡Vamos!</button></div>
+  `), 300);
+}
+
+function startPlacement(){
+  G.phase='placement';
+  G.placementTurn='resist';
+  G.placementCount=0;
+  G.placedMilice={};
+  G.placedSoldiers={};
+  G.airdrops={};
+  G.firedWeapon=false;
+  G.activatedThisDay=[];
+  // Los placedResist iniciales (3 en Casa Segura) ya están del newGame()
+  // availableResist refleja cuántos quedan por colocar
+  G.availableResist = G.placedResist.length;
+
+  // Calcular número de patrullas este día
+  const moraleSpace = MORALE_TRACK[G.moraleIdx];
+  const patrolFromMorale = moraleSpace.fail ? 0 : moraleSpace.p;
+  G.totalPatrols = Math.max(G.availableResist, patrolFromMorale);
+  log(`=== DÍA ${G.day} === COLOCACIÓN — ${G.totalPatrols} Patrullas este día`,'info');
+
+  placeResist();
+}
+
+function placeResist(){
+  G.placementTurn='resist';
+  if(G.placementCount >= G.availableResist){
+    return placePatrolStart();
+  }
+  renderPhaseBanner();
+  showModal(`
+    <h3>📍 Mueve un Trabajador de la Resistencia</h3>
+    <p>${G.availableResist - G.placementCount} disponibles. Toca una ubicación vacía para colocar a uno.</p>
+    <p style="font-size:.7rem;color:#aaa">Los 3 trabajadores están en Casa Segura (visibles). Toca otra ubicación para moverlos.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">OK</button>
+    </div>
+  `);
+  renderAll();
+}
+
+/* ===== BOARD INTERACTION ===== */
+function onBoardClick(locId){
+  if(G.phase==='gameover') return;
+  const loc = locById(locId);
+  if(!loc) return;
+
+  // FASE COLOCACIÓN — colocar Resistencia
+  if(G.phase==='placement' && G.placementTurn==='resist'){
+    return doPlaceResist(locId);
+  }
+  // FASE COLOCACIÓN — colocar Patrulla
+  if(G.phase==='placement' && G.placementTurn==='patrol'){
+    return doPlacePatrollUI(locId);
+  }
+  // FASE ACCIÓN — seleccionar worker para activar
+  if(G.phase==='action'){
+    return onActionClick(locId);
+  }
+}
+
+function doPlaceResist(locId){
+  const loc = locById(locId);
+  // No se puede colocar si ya hay alguien
+  const u = unitsAt(locId);
+  if(u.r>0 || u.m>0 || u.s>0){
+    showModal(`<h3>❌ Ubicación ocupada</h3><p>Ya hay alguien aquí. Elige otra.</p><div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>`);
+    return;
+  }
+  // No se puede colocar si es una habitación libre vacía sin más
+  if(loc.spare && !G.sparePlaced[locId]){
+    showModal(`<h3>🏠 Piso Franco vacío</h3><p>Esta ubicación aún no tiene un Piso Franco construido. Durante la fase de Acción puedes construir uno aquí.</p><div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>`);
+    return;
+  }
+  // Mission slots no se usan para resistencia inicial
+  if(loc.missionSlot){
+    showModal(`<h3>🎯 Salida de Misión</h3><p>Esta es la entrada a una misión. Necesitas colocar un trabajador allí como Acción.</p><div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>`);
+    return;
+  }
+  // Mover un worker de Casa Segura (o donde esté) a esta ubicación
+  // Si ya estamos colocando uno (placementCount > 0), se añade uno nuevo
+  // Si no, movemos uno de los iniciales (que están en safe_house)
+  G.placedResist.push(locId);
+  G.placementCount++;
+  log(`Resistencia movida a ${loc.name}`,'resist');
+  closeModal();
+  if(G.placementCount >= G.availableResist){
+    placePatrolStart();
+  } else {
+    renderAll();
+    placeResist();
+  }
+}
+
+function placePatrolStart(){
+  G.placementTurn='patrol';
+  G.placementCount=0;
+  placePatrol();
+}
+
+function placePatrol(){
+  // ¿Cuántas milicias vs soldados?
+  // Regla: si el track de soldados está más allá del 1er espacio (idx>=1),
+  // los reemplazos son soldados en lugar de milicias
+  if(G.placementCount >= G.totalPatrols){
+    return startAction();
+  }
+  // Calcular cuántos soldados faltan: soldados que ya se colocaron hoy + 1 si se va a colocar este
+  // Más sencillo: si soldierIdx>=1, la ÚLTIMA patrulla del día es soldado
+  // (porque se colocan en orden y los soldados son los últimos)
+  G.currentPatrolCard = G.patrolDeck.shift();
+  if(!G.currentPatrolCard){
+    // Reshuffle discard
+    G.patrolDeck = shuffle(G.patrolDiscard);
+    G.patrolDiscard=[];
+    G.currentPatrolCard = G.patrolDeck.shift();
+  }
+  const card = G.currentPatrolCard;
+  log(`Carta Patrulla: ${card.locs.map(id=>locById(id).name).join(' / ')}`,'patrol');
+
+  // Intentar colocar
+  const tryPlace = ()=>{
+    for(let i=0;i<card.locs.length;i++){
+      const lid = card.locs[i];
+      if(!isOccupied(lid)){
+        // Colocar
+        const isSoldier = (G.soldierIdx >= 1) && (G.totalPatrols - G.placementCount <= G.soldierIdx);
+        if(isSoldier){
+          G.placedSoldiers[lid] = (G.placedSoldiers[lid]||0)+1;
+          log(`Soldado colocado en ${locById(lid).name}`,'patrol');
+        } else {
+          G.placedMilice[lid] = (G.placedMilice[lid]||0)+1;
+          log(`Milicia colocada en ${locById(lid).name}`,'patrol');
+        }
+        G.placementCount++;
+        G.patrolDiscard.push(card);
+        renderAll();
+        // Continuar
+        setTimeout(placePatrol, 600);
+        return true;
+      }
+    }
+    // Todas ocupadas → intento de arresto
+    for(let i=0;i<card.locs.length;i++){
+      const lid = card.locs[i];
+      if(G.placedResist.includes(lid)){
+        // Arresto
+        // Quitar UN worker de resistencia
+        const idx = G.placedResist.indexOf(lid);
+        G.placedResist.splice(idx,1);
+        // Colocar patrulla allí
+        const isSoldier = (G.soldierIdx >= 1) && (G.totalPatrols - G.placementCount <= G.soldierIdx);
+        if(isSoldier){
+          G.placedSoldiers[lid] = (G.placedSoldiers[lid]||0)+1;
+          log(`⚠️ ¡Soldado arresta a Resistencia en ${locById(lid).name}!`,'bad');
+        } else {
+          G.placedMilice[lid] = (G.placedMilice[lid]||0)+1;
+          log(`⚠️ ¡Milicia arresta a Resistencia en ${locById(lid).name}!`,'bad');
+        }
+        G.placementCount++;
+        G.patrolDiscard.push(card);
+        checkLoss();
+        renderAll();
+        setTimeout(placePatrol, 700);
+        return true;
+      }
+    }
+    // Sin arresto posible, descartar
+    G.patrolDiscard.push(card);
+    log(`Carta Patrulla descartada (sin colocación)`,'info');
+    G.placementCount++;
+    renderAll();
+    setTimeout(placePatrol, 400);
+    return false;
+  };
+
+  if(!tryPlace()){
+    // Continuará async
+  }
+}
+
+/* ===== FASE ACCIÓN ===== */
+function startAction(){
+  G.phase='action';
+  renderPhaseBanner();
+  log(`=== FASE DE ACCIÓN === Activa tus trabajadores uno por uno`,'info');
+  showModal(`
+    <h3>⚡ Fase de Acción</h3>
+    <p>Toca un Trabajador de la Resistencia en el tablero para activarlo.</p>
+    <p style="font-size:.7rem;color:#aaa">Cada trabajador solo puede hacer UNA acción. Al terminar, debe poder volver a una Casa Segura.</p>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="closeModal()">Empezar</button>
+    </div>
+  `);
+  renderActions();
+  renderAll();
+}
+
+function onActionClick(locId){
+  // ¿Hay worker de resistencia aquí?
+  if(!G.placedResist.includes(locId)){
+    showModal(`<h3>❌ Sin trabajador</h3><p>No hay un Trabajador de la Resistencia en esta ubicación.</p><div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>`);
+    return;
+  }
+  if(G.activatedThisDay.includes(locId)){
+    showModal(`<h3>⚠️ Ya activado</h3><p>Este trabajador ya fue activado este día.</p><div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>`);
+    return;
+  }
+  const loc = locById(locId);
+  showWorkerActions(locId);
+}
+
+function showWorkerActions(locId){
+  const loc = locById(locId);
+  const actions = [];
+
+  // Acciones estándar
+  if(loc.actions){
+    loc.actions.forEach(a=>{
+      switch(a){
+        case 'intel': actions.push({id:'get_intel',label:'🔵 Obtener 1 Información',fn:()=>gainRes('intel',1)}); break;
+        case 'food': actions.push({id:'get_food',label:'🟢 Obtener 1 Comida',fn:()=>gainRes('food',1)}); break;
+        case 'money': actions.push({id:'get_money',label:'🟡 Obtener 1 Moneda',fn:()=>gainRes('money',1)}); break;
+        case 'medicine': actions.push({id:'get_med',label:'⚪ Obtener 1 Medicina (escudo naranja = sin retorno)',fn:()=>gainRes('medicine',1,true)}); break;
+        case 'barter': actions.push({id:'barter',label:'🛒 Mercado Negro: intercambiar (ver)',fn:()=>barterAction(locId)}); break;
+        case 'move': actions.push({id:'move',label:'🌉 Puente: cruzar',fn:()=>moveAcross(locId)}); break;
+        case 'escape': actions.push({id:'escape',label:'🚧 Marcar ruta de escape',fn:()=>escapeRoute(locId)}); break;
+        case 'recruit': actions.push({id:'recruit',label:'☕ Reclutar del Café',fn:()=>recruitCafe(locId)}); break;
+        case 'spare_safe': actions.push({id:'spare_safe',label:'🏡 Quedarse en Casa Segura',fn:()=>staySafe(locId)}); break;
+      }
+    });
+  }
+
+  // Habitación libre colocada → ejecutar su efecto
+  if(G.sparePlaced[locId]){
+    const srId = G.sparePlaced[locId];
+    const sr = SPARE_ROOMS.find(r=>r.id===srId);
+    actions.push({id:'spare_use',label:`🏠 Usar ${sr.name}: ${sr.desc}`,fn:()=>useSpareRoom(locId)});
+  } else if(loc.spare){
+    actions.push({id:'build_spare',label:'🏠 Construir Habitación Libre aquí',fn:()=>buildSpareRoom(locId)});
+  }
+
+  // Campo con paracaídas
+  if(loc.field){
+    if(G.airdrops[locId]){
+      actions.push({id:'pickup',label:'🪂 Recoger recursos del paracaídas',fn:()=>pickupAirdrop(locId)});
+    }
+    actions.push({id:'airdrop',label:'✈️ Lanzar paracaídas aquí (recursos gratis)',fn:()=>airdropHere(locId)});
+  }
+
+  // Slot de misión
+  if(loc.missionSlot){
+    // Determinar qué misión está aquí
+    const misIdx = (locId === 'mission_left') ? 0 : 1;
+    const mis = G.missions[misIdx];
+    actions.push({id:'mission_act',label:`🎯 Trabajar en misión: ${mis.name}`,fn:()=>doMission(misIdx, locId)});
+  }
+
+  // Acción siempre disponible: disparar a la milicia (una vez por día)
+  if(!G.firedWeapon && G.resources.weapon > 0 && Object.keys(G.placedMilice).length>0){
+    actions.push({id:'shoot',label:'🔫 Disparar a una Milicia (1 Arma, 1 vez/día)',fn:()=>shootMilice(locId)});
+  }
+
+  // Construir opciones del modal
+  let html = `<h3>${loc.icon} ${loc.name}</h3>`;
+  if(actions.length===0){
+    html += `<p>No hay acciones disponibles aquí.</p>`;
+  } else {
+    html += `<p>Elige una acción para este trabajador:</p>`;
+    actions.forEach(a=>{
+      html += `<button class="option" onclick="actionChoose('${locId}','${a.id}')">${a.label}</button>`;
+    });
+  }
+  html += `<div class="modal-actions"><button class="btn danger" onclick="endWorker('${locId}')">Terminar (devolver a Casa Segura)</button></div>`;
+  html += `<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button></div>`;
+  showModal(html);
+}
+
+function actionChoose(locId, actId){
+  // Mapear actId a la función
+  const loc = locById(locId);
+  if(actId==='get_intel') return gainRes('intel',1);
+  if(actId==='get_food') return gainRes('food',1);
+  if(actId==='get_money') return gainRes('money',1);
+  if(actId==='get_med') return gainRes('medicine',1,true);
+  if(actId==='barter') return barterAction(locId);
+  if(actId==='move') return moveAcross(locId);
+  if(actId==='escape') return escapeRoute(locId);
+  if(actId==='recruit') return recruitCafe(locId);
+  if(actId==='spare_safe') return staySafe(locId);
+  if(actId==='spare_use') return useSpareRoom(locId);
+  if(actId==='build_spare') return buildSpareRoom(locId);
+  if(actId==='pickup') return pickupAirdrop(locId);
+  if(actId==='airdrop') return airdropHere(locId);
+  if(actId==='mission_act') return doMission(locId==='mission_left'?0:1, locId);
+  if(actId==='shoot') return shootMilice(locId);
+}
+
+/* ===== ACCIONES ===== */
+function gainRes(res, n, noReturn=false){
+  G.resources[res] += n;
+  log(`+${n} ${RESOURCE_DEFS.find(r=>r.id===res).name}`,'good');
+  if(noReturn){
+    log(`Escudo naranja: no necesita volver a Casa Segura tras esta acción`,'info');
+    finishWorker(null, true);
+  } else {
+    finishWorker(null);
+  }
+}
+
+function barterAction(locId){
+  // Mercado Negro: intercambiar
+  showModal(`
+    <h3>🛒 Mercado Negro</h3>
+    <p>Intercambia 2 Monedas por 1 Arma, o 1 Moneda por 1 Comida/Medicina/Información.</p>
+    <div id="barter-opts"></div>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button></div>
+  `);
+  const opts = [];
+  if(G.resources.money>=2) opts.push({label:'2 Monedas → 1 Arma',fn:()=>{G.resources.money-=2;G.resources.weapon+=1;finishWorker(null);}});
+  if(G.resources.money>=1){
+    opts.push({label:'1 Moneda → 1 Comida',fn:()=>{G.resources.money-=1;G.resources.food+=1;finishWorker(null);}});
+    opts.push({label:'1 Moneda → 1 Medicina',fn:()=>{G.resources.money-=1;G.resources.medicine+=1;finishWorker(null);}});
+    opts.push({label:'1 Moneda → 1 Información',fn:()=>{G.resources.money-=1;G.resources.intel+=1;finishWorker(null);}});
+  }
+  if(opts.length===0){
+    showModal(`<h3>❌ Sin recursos</h3><p>No tienes Monedas suficientes para intercambiar.</p><div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`);
+    return;
+  }
+  let html = '';
+  opts.forEach((o,i)=>{html += `<button class="option" onclick="barterDo(${i},'${locId}')">${o.label}</button>`;});
+  window._barterOps = opts;
+  $('#barter-opts').innerHTML = html;
+}
+function barterDo(idx, locId){
+  window._barterOps[idx].fn();
+  log('Intercambio en Mercado Negro','info');
+  closeModal();
+}
+
+function moveAcross(locId){
+  showModal(`<h3>🌉 Cruzar Puente</h3><p>Puentes son puntos de paso: ya puedes cruzarlos libremente siguiendo las líneas blancas. Esta acción no tiene efecto especial.</p><div class="modal-actions"><button class="btn primary" onclick="finishWorker(null);closeModal()">OK</button></div>`);
+}
+
+function escapeRoute(locId){
+  // Marca ruta de escape: si no había ruta, ahora hay una (acción narrativa)
+  showModal(`<h3>🚧 Ruta de Escape</h3><p>Has trazado una ruta de escape desde este punto. Te resultará más fácil volver a Casa Segura.</p><div class="modal-actions"><button class="btn primary" onclick="finishWorker(null,true);closeModal()">OK</button></div>`);
+}
+
+function recruitCafe(locId){
+  if(G.cafeResist <= 0){
+    showModal(`<h3>❌ Sin reclutas</h3><p>Ya no quedan reclutas en el Café.</p><div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`);
+    return;
+  }
+  G.cafeResist--;
+  G.availableResist++;
+  // Añadir el nuevo recluta al tablero (visible en Casa Segura)
+  G.placedResist.push('safe_house');
+  log(`+1 Recluta del Café → ahora ${G.availableResist} trabajadores disponibles`,'good');
+  finishWorker(locId);
+}
+
+function staySafe(locId){
+  // Quedarse: ya está en Casa Segura, no se mueve
+  finishWorker(locId, true);
+}
+
+function buildSpareRoom(locId){
+  if(!G.sparePlaced[locId]){
+    const available = SPARE_ROOMS.filter(sr=>!Object.values(G.sparePlaced).includes(sr.id));
+    if(available.length===0){
+      showModal(`<h3>❌ Sin habitaciones</h3><p>Ya usaste todas las Habitaciones Libres.</p><div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`);
+      return;
+    }
+    let html = `<h3>🏠 Construir Habitación Libre</h3><p>Elige qué tipo de habitación construir en ${locById(locId).name}:</p>`;
+    available.forEach(sr=>{
+      html += `<button class="option" onclick="buildSpare('${locId}','${sr.id}')">${sr.icon} <b>${sr.name}</b> — ${sr.desc}</button>`;
+    });
+    html += `<div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button></div>`;
+    showModal(html);
+  }
+}
+function buildSpare(locId, srId){
+  G.sparePlaced[locId] = srId;
+  log(`Habitación Libre construida: ${SPARE_ROOMS.find(s=>s.id===srId).name} en ${locById(locId).name}`,'good');
+  finishWorker(locId);
+}
+
+function useSpareRoom(locId){
+  const srId = G.sparePlaced[locId];
+  const sr = SPARE_ROOMS.find(s=>s.id===srId);
+  switch(sr.effect){
+    case 'safe_house':
+      log(`Casa Segura alternativa activa`,'info');
+      finishWorker(locId, true);
+      break;
+    case 'money':
+      G.resources.money++;
+      log(`+1 Moneda (Falsificador)`,'good');
+      finishWorker(locId);
+      break;
+    case 'intel':
+      G.resources.intel++;
+      log(`+1 Información (Informante)`,'good');
+      finishWorker(locId);
+      break;
+    case 'food_or_med':
+      showModal(`
+        <h3>📦 Contrabandista</h3>
+        <p>Elige:</p>
+        <button class="option" onclick="useSpareChoose('${locId}','food')">+1 Comida</button>
+        <button class="option" onclick="useSpareChoose('${locId}','medicine')">+1 Medicina</button>
+        <div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button></div>
+      `);
+      break;
+    case 'explosive':
+      G.resources.explosive++;
+      log(`+1 Explosivo (Químico)`,'good');
+      finishWorker(locId);
+      break;
+    case 'morale':
+      if(G.moraleIdx > 0) G.moraleIdx--;
+      log(`+1 Moral (Propagandista)`,'good');
+      finishWorker(locId);
+      break;
+  }
+}
+function useSpareChoose(locId, type){
+  G.resources[type]++;
+  log(`+1 ${type==='food'?'Comida':'Medicina'} (Contrabandista)`,'good');
+  finishWorker(locId);
+  closeModal();
+}
+
+function pickupAirdrop(locId){
+  const items = G.airdrops[locId];
+  if(!items) return;
+  for(const k in items){
+    G.resources[k] += items[k];
+    log(`+${items[k]} ${RESOURCE_DEFS.find(r=>r.id===k).name} (paracaídas)`,'good');
+  }
+  delete G.airdrops[locId];
+  finishWorker(locId);
+}
+
+function airdropHere(locId){
+  // Pedir recursos a colocar
+  showModal(`
+    <h3>✈️ Lanzar Paracaídas</h3>
+    <p>Elige 1 Arma, 1 Moneda o 3 Comida:</p>
+    <button class="option" onclick="airdropChoose('${locId}','weapon',1)">1 Arma</button>
+    <button class="option" onclick="airdropChoose('${locId}','money',1)">1 Moneda</button>
+    <button class="option" onclick="airdropChoose('${locId}','food',3)">3 Comida</button>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">Cancelar</button></div>
+  `);
+}
+function airdropChoose(locId, type, n){
+  if(G.airdrops[locId]){
+    showModal(`<h3>❌ Ya hay paracaídas</h3><p>Esta ubicación ya tiene un paracaídas. Recoge primero.</p><div class="modal-actions"><button class="btn" onclick="airdropHere('${locId}')">OK</button></div>`);
+    return;
+  }
+  // Verificar que tenga el recurso
+  if(G.resources[type] < n){
+    showModal(`<h3>❌ No tienes suficientes ${RESOURCE_DEFS.find(r=>r.id===type).name}</h3><div class="modal-actions"><button class="btn" onclick="airdropHere('${locId}')">Volver</button></div>`);
+    return;
+  }
+  G.resources[type] -= n;
+  G.airdrops[locId] = {[type]:n};
+  log(`Paracaídas lanzado en ${locById(locId).name}`,'info');
+  finishWorker(null, true); // Escudo naranja
+  closeModal();
+}
+
+function shootMilice(locId){
+  // Mostrar milicias en tablero para elegir
+  const miliceLocs = Object.keys(G.placedMilice).filter(k=>G.placedMilice[k]>0);
+  if(miliceLocs.length===0){
+    showModal(`<h3>❌ Sin milicias</h3><p>No quedan Milicias en el tablero para disparar.</p><div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`);
+    return;
+  }
+  let html = `<h3>🔫 Disparar a la Milicia</h3><p>Elige qué Milicia eliminar (consume 1 Arma, baja moral 1, avanza track soldados):</p>`;
+  miliceLocs.forEach(m=>{
+    html += `<button class="option" onclick="shootChoose('${m}','${locId}')">${locById(m).icon} ${locById(m).name} (${G.placedMilice[m]} milicias)</button>`;
+  });
+  html += `<div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`;
+  showModal(html);
+}
+function shootChoose(targetLoc, fromLoc){
+  G.resources.weapon--;
+  G.placedMilice[targetLoc]--;
+  if(G.placedMilice[targetLoc]<=0) delete G.placedMilice[targetLoc];
+  // Avanzar track soldado
+  if(G.soldierIdx < SOLDIER_TRACK.length-1) G.soldierIdx++;
+  // Bajar moral
+  if(G.moraleIdx < MORALE_TRACK.length-1) G.moraleIdx++;
+  log(`🔫 Milicia disparada en ${locById(targetLoc).name}. Soldiers ↑, Moral ↓`,'bad');
+  checkLoss();
+  G.firedWeapon=true;
+  finishWorker(fromLoc);
+  renderAll();
+}
+
+function doMission(misIdx, locId){
+  const mis = G.missions[misIdx];
+  const progress = G.missionProgress[misIdx];
+  // Encontrar la siguiente tarea disponible
+  const tasks = mis.tasks;
+  let nextIdx = -1;
+  for(let i=0;i<tasks.length;i++){
+    if(!progress[i]){
+      // Verificar que sea el siguiente número disponible
+      const allLowerDone = tasks.slice(0,i).every((_,j)=>progress[j]);
+      // (Si las tareas están ordenadas por n, la primera incompleta es la siguiente)
+      nextIdx = i;
+      break;
+    }
+  }
+  if(nextIdx===-1){
+    showModal(`<h3>✅ Misión Completa</h3><p>¡Todas las tareas de "${mis.name}" están completas!</p><div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`);
+    return;
+  }
+  const task = tasks[nextIdx];
+  // Verificar rango de turno si aplica
+  if(mis.turnRange){
+    if(G.day < mis.turnRange[0] || G.day > mis.turnRange[1]){
+      showModal(`<h3>⏰ Fuera de plazo</h3><p>Esta misión solo se puede completar entre los días ${mis.turnRange[0]} y ${mis.turnRange[1]}. Hoy es día ${G.day}.</p><div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`);
+      return;
+    }
+  }
+  // Mostrar costo
+  let costStr = Object.entries(task.cost).map(([k,v])=>`${v}× ${RESOURCE_DEFS.find(r=>r.id===k).name}`).join(' + ');
+  let canPay = Object.entries(task.cost).every(([k,v])=>G.resources[k]>=v);
+  let html = `<h3>🎯 ${mis.name}</h3><p><b>Tarea ${task.n}</b> (de ${tasks.length}): ${task.label}</p><p>Costo: ${costStr}</p>`;
+  if(canPay){
+    html += `<button class="option" onclick="completeMissionTask(${misIdx},${nextIdx},'${locId}')">✅ Completar tarea</button>`;
+  } else {
+    html += `<p style="color:var(--bad)">No tienes suficientes recursos.</p>`;
+  }
+  html += `<div class="modal-actions"><button class="btn" onclick="showWorkerActions('${locId}')">Volver</button></div>`;
+  showModal(html);
+}
+function completeMissionTask(misIdx, taskIdx, locId){
+  const task = G.missions[misIdx].tasks[taskIdx];
+  for(const k in task.cost){
+    G.resources[k] -= task.cost[k];
+  }
+  G.missionProgress[misIdx][taskIdx] = true;
+  log(`✓ Tarea ${task.n} de "${G.missions[misIdx].name}" completada`,'good');
+  finishWorker(locId);
+  checkWin();
+}
+
+function finishWorker(locId, noReturn=false){
+  // Marcar activado
+  if(locId && !G.activatedThisDay.includes(locId)){
+    G.activatedThisDay.push(locId);
+  }
+  closeModal();
+  renderAll();
+  // Si quedan workers sin activar
+  const remaining = G.placedResist.filter(id=>!G.activatedThisDay.includes(id));
+  if(remaining.length>0 && !noReturn){
+    // Preguntar si quiere trazar ruta de escape o continuar
+    // Por simplicidad: pasamos al siguiente worker disponible
+    showModal(`
+      <h3>✅ Acción realizada</h3>
+      <p>${remaining.length} trabajadores restantes. Toca uno para activarlo.</p>
+      <div class="modal-actions">
+        <button class="btn primary" onclick="closeModal()">OK</button>
+      </div>
+    `);
+  } else if(remaining.length===0 || noReturn){
+    // Pasar a mantenimiento
+    startMaintenance();
+  }
+}
+
+function endWorker(locId){
+  G.activatedThisDay.push(locId);
+  closeModal();
+  renderAll();
+  const remaining = G.placedResist.filter(id=>!G.activatedThisDay.includes(id));
+  if(remaining.length>0){
+    showModal(`<h3>👋 Trabajador devuelto</h3><p>${remaining.length} trabajadores restantes.</p><div class="modal-actions"><button class="btn primary" onclick="closeModal()">OK</button></div>`);
+  } else {
+    startMaintenance();
+  }
+}
+
+/* ===== FASE MANTENIMIENTO ===== */
+function startMaintenance(){
+  G.phase='maintenance';
+  renderPhaseBanner();
+  log(`=== FASE DE MANTENIMIENTO ===`,'info');
+
+  // 1. Trazar rutas de escape para TODOS los workers
+  const results = traceAllEscapes();
+
+  // 2. Quitar todas las patrullas
+  G.placedMilice={};
+  G.placedSoldiers={};
+
+  // 3. Avanzar día
+  G.day++;
+  const daySpace = DAY_TRACK[G.day-1];
+  if(daySpace && daySpace.orange){
+    if(G.moraleIdx < MORALE_TRACK.length-1) G.moraleIdx++;
+    log(`⚠️ Día en espacio naranja: -1 Moral`,'bad');
+  }
+  if(daySpace && daySpace.end){
+    log(`🏁 Día 15 alcanzado`,'info');
+  }
+
+  // Mostrar resultado
+  showModal(`
+    <h3>🌙 Fin del Día</h3>
+    <p>${results.returned} trabajadores volvieron a Casa Segura.</p>
+    ${results.arrested>0?`<p style="color:var(--bad)">⚠️ ${results.arrested} trabajador(es) arrestado(s) y perdido(s).</p>`:''}
+    ${results.safeHouseUsed>0?`<p style="color:var(--gold)">${results.safeHouseUsed} usó la Habitación Libre Casa Segura.</p>`:''}
+    <div class="modal-actions">
+      <button class="btn primary" onclick="closeModal();checkLoss();afterMaintenance();">Día Siguiente →</button>
+    </div>
+  `);
+  renderAll();
+}
+
+function traceAllEscapes(){
+  let returned=0, arrested=0, safeHouseUsed=0;
+  const newPlaced = [];
+  const newCafe = G.cafeResist;
+  const toProcess = [...G.placedResist];
+
+  for(const lid of toProcess){
+    // ¿Puede trazar ruta a la Casa Segura inferior?
+    const canReachSafe = canTrace(lid, 'safe_house');
+    const safeSpareLoc = Object.keys(G.sparePlaced).find(k=>G.sparePlaced[k]==='safe_house');
+    const canReachSpareSafe = safeSpareLoc ? canTrace(lid, safeSpareLoc) : false;
+
+    if(canReachSafe){
+      // Vuelve a Casa Segura
+      returned++;
+      G.availableResist++;
+    } else if(canReachSpareSafe){
+      // Vuelve a Casa Segura alternativa
+      returned++;
+      safeHouseUsed++;
+      G.availableResist++;
+    } else {
+      // Arrestado
+      arrested++;
+      log(`⛓️ Trabajador arrestado en ${locById(lid).name}`,'bad');
+    }
+  }
+
+  G.placedResist = [];
+  return {returned, arrested, safeHouseUsed};
+}
+
+function canTrace(fromLoc, toLoc){
+  // BFS
+  const queue = [[fromLoc]];
+  const visited = new Set([fromLoc]);
+  while(queue.length){
+    const path = queue.shift();
+    const cur = path[path.length-1];
+    if(cur===toLoc) return true;
+    for(const [a,b] of CONNECTIONS){
+      let next = null;
+      if(a===cur) next=b;
+      else if(b===cur) next=a;
+      if(next && !visited.has(next)){
+        // Solo puede pasar por vacío o por trabajadores de la Resistencia
+        if(next===toLoc) return true;
+        const occ = isOccupied(next);
+        if(!occ || (occ && G.placedResist.includes(next))){
+          visited.add(next);
+          queue.push([...path,next]);
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function afterMaintenance(){
+  // Chequear victoria/derrota por día
+  if(G.day > 15){
+    endGame(false, '¡El día 15 terminó sin completar tus misiones!');
+    return;
+  }
+  // Chequear moral 0
+  const ms = MORALE_TRACK[G.moraleIdx];
+  if(ms.fail){
+    endGame(false, '¡La moral de la población cayó a 0!');
+    return;
+  }
+  // Reinsertar los trabajadores sobrevivientes en Casa Segura para el nuevo día
+  const survived = G.availableResist;
+  G.placedResist = [];
+  for(let i=0;i<survived;i++) G.placedResist.push('safe_house');
+  // Empezar nueva colocación
+  startPlacement();
+}
+
+/* ===== CHECKS ===== */
+function checkWin(){
+  // Misión completa cuando todas las tareas están hechas
+  for(let i=0;i<G.missionProgress.length;i++){
+    const allDone = G.missions[i].tasks.every((_,j)=>G.missionProgress[i][j]);
+    if(allDone){
+      // Verificar requisitos especiales
+      const mis = G.missions[i];
+      if(mis.endRequirement){
+        // Liberar la ciudad: ≥3 Armas y Moral 4+
+        if(G.resources.weapon < 3 || MORALE_TRACK[G.moraleIdx].m < 4){
+          // No cumple aún, pero la misión ya está "completa". Sólo gana al final.
+          continue;
+        }
+      }
+      // Verificar requisitos de orden
+      if(mis.id==='assassination'){
+        // Requiere completar la otra misión primero
+        const other = 1-i;
+        const otherDone = G.missions[other].tasks.every((_,j)=>G.missionProgress[other][j]);
+        if(!otherDone){
+          showModal(`<h3>⚠️ Asesinato</h3><p>Debes completar primero la otra misión.</p><div class="modal-actions"><button class="btn primary" onclick="closeModal()">OK</button></div>`);
+          return;
+        }
+      }
+      log(`★ MISIÓN COMPLETADA: ${mis.name} ★`,'good');
+      endGame(true, `¡Completaste "${mis.name}"!`);
+      return;
+    }
+  }
+}
+
+function checkLoss(){
+  if(G.availableResist <= 0 && G.placedResist.length===0 && G.cafeResist <= 0){
+    endGame(false, '¡Todos tus trabajadores han sido arrestados!');
+  }
+  const ms = MORALE_TRACK[G.moraleIdx];
+  if(ms.fail){
+    endGame(false, '¡La moral de la población cayó a 0!');
+  }
+}
+
+function endGame(win, msg){
+  G.phase='gameover';
+  renderPhaseBanner();
+  const color = win ? 'var(--good)' : 'var(--bad)';
+  const title = win ? '🎉 ¡VICTORIA!' : '💀 DERROTA';
+  showModal(`
+    <h3 style="color:${color}">${title}</h3>
+    <p>${msg}</p>
+    <p style="font-size:.75rem;color:#aaa">Día final: ${G.day} | Moral: ${MORALE_TRACK[G.moraleIdx].m} | Armas: ${G.resources.weapon}</p>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="newGame()">Nueva Partida</button>
+    </div>
+  `);
+}
+
+/* ===== RENDER ===== */
+function renderAll(){
+  renderTracks();
+  renderBoard();
+  renderResources();
+  renderUnits();
+  renderMissions();
+  renderPatrol();
+  renderSpareRooms();
+  renderActions();
+  renderHeader();
+}
+
+function renderHeader(){
+  $('#hdr-day').textContent = `Día ${G.day}`;
+  $('#hdr-morale').textContent = `Moral ${MORALE_TRACK[G.moraleIdx].m}`;
+  $('#hdr-soldier').textContent = `S ${SOLDIER_TRACK[G.soldierIdx].n}`;
+}
+
+function renderPhaseBanner(){
+  const p = $('#phase');
+  const map = {
+    placement:'FASE DE COLOCACIÓN',
+    action:'FASE DE ACCIÓN',
+    maintenance:'FASE DE MANTENIMIENTO',
+    gameover:'★ PARTIDA TERMINADA ★'
+  };
+  p.textContent = map[G.phase] || '';
+  p.style.background = G.phase==='gameover' ? 'linear-gradient(90deg,var(--bad),#a33)' :
+                       G.phase==='action' ? 'linear-gradient(90deg,var(--good),#1a7)' :
+                       '';
+}
+
+function renderTracks(){
+  // Día
+  const tday = $('#track-day');
+  tday.innerHTML = DAY_TRACK.map((d,i)=>{
+    const cls = `track-cell day-cell${i+1===G.day?' active':''}${d.orange?' orange':''}${d.end?' end':''}`;
+    return `<div class="${cls}" title="Día ${d.n}${d.orange?' (-1 moral)':''}${d.end?' (Fin)':''}">${d.n}</div>`;
+  }).join('');
+
+  // Moral — render en 2 filas según el mapa físico oficial:
+  // Fila 1 (izq → der): FAIL(gameIdx=6), Moral1(5), Moral2(4), Moral3(3)
+  // Fila 2 (izq → der): Moral4(2), Moral5(1), START(0), REF(7)
+  // MORALE_TRACK está ordenado: [0]=START(6), [1]=5, [2]=4, [3]=3, [4]=2, [5]=1, [6]=FAIL
+  const tm = $('#track-morale');
+  // gameIdx para cada celda visual (izq → der en cada fila)
+  const visualGameIdxs = [6, 5, 4, 3,  2, 1, 0, 7];
+  // fila 1: índices visuales 0..3, fila 2: 4..7
+  const renderCell = (gameIdx, isLast)=>{
+    if(gameIdx === 7){
+      // Celda 7/2 — referencia visual del mapa físico (no se usa en juego)
+      const cls = `track-cell morale-cell ref`;
+      return `<div class="${cls}" title="Moral 7 (referencia del tablero)">7<span class="patrol-num">2</span></div>`;
+    }
+    const m = MORALE_TRACK[gameIdx];
+    const cls = `track-cell morale-cell${gameIdx===G.moraleIdx?' active':''}${m.fail?' fail':''}${m.start?' start':''}`;
+    if(m.fail){
+      return `<div class="${cls}" title="FIN - Moral agotada">FAIL<span class="patrol-num">—</span></div>`;
+    }
+    if(m.start){
+      return `<div class="${cls}" title="START - Moral ${m.m} (mín ${m.p} patrullas)">
+        <div class="start-band"></div>
+        <div class="start-text">START</div>
+        <div class="start-num">${m.m}</div>
+        <span class="patrol-num">${m.p}</span>
+      </div>`;
+    }
+    return `<div class="${cls}" title="Moral ${m.m} (mín ${m.p} patrullas)">${m.m}<span class="patrol-num">${m.p}</span></div>`;
+  };
+  tm.innerHTML = '<div class="track-row">'+visualGameIdxs.slice(0,4).map(g=>renderCell(g)).join('')+'</div>'
+                +'<div class="track-row">'+visualGameIdxs.slice(4,8).map(g=>renderCell(g)).join('')+'</div>';
+
+  // Soldados
+  const ts = $('#track-soldier');
+  ts.innerHTML = SOLDIER_TRACK.map((s,i)=>{
+    const cls = `track-cell soldier-cell${i===G.soldierIdx?' active':''}`;
+    const label = s.start ? '0' : s.n;
+    return `<div class="${cls}" title="${s.start?'Inicio':''}">${label}</div>`;
+  }).join('');
+}
+
+function renderBoard(){
+  const board = $('#board');
+  board.innerHTML = '';
+  LOCATIONS.forEach(loc=>{
+    const div = document.createElement('div');
+    div.className = 'location';
+    div.id = `loc-${loc.id}`;
+    div.style.left = `calc(${loc.x}% - 40px)`;
+    div.style.top = `calc(${loc.y}% - 22px)`;
+    div.style.width = '80px';
+    div.style.height = '44px';
+    if(loc.safe) div.classList.add('safe-house');
+    if(loc.cafe) div.classList.add('cafe');
+    if(loc.spare) div.classList.add('spare-room-slot');
+    if(loc.missionSlot) div.classList.add('mission-slot');
+    if(loc.field) div.style.background = '#d8e8b8';
+
+    const u = unitsAt(loc.id);
+    let cls = '';
+    if(u.r>0) cls += ' has-resist';
+    if(u.m>0) cls += ' has-milice';
+    if(u.s>0) cls += ' has-soldier';
+    if(G.airdrops[loc.id]) cls += ' has-resource';
+    if(cls) div.className += cls;
+
+    let iconHtml = `<div class="icon">${loc.icon}</div>`;
+    if(G.sparePlaced[loc.id]){
+      const sr = SPARE_ROOMS.find(s=>s.id===G.sparePlaced[loc.id]);
+      iconHtml = `<div class="icon">${sr.icon}</div>`;
+    }
+    if(loc.missionSlot){
+      const idx = loc.id==='mission_left'?0:1;
+      const mis = G.missions[idx];
+      const done = G.missionProgress[idx] ? Object.keys(G.missionProgress[idx]).length : 0;
+      const total = mis.tasks.length;
+      iconHtml = `<div style="font-size:.5rem;font-weight:bold;">${mis.name.substring(0,12)}</div><div style="font-size:.5rem;color:#5a4525;">${done}/${total}</div>`;
+    }
+
+    let unitsHtml = '';
+    if(u.r>0 || u.m>0 || u.s>0){
+      unitsHtml = '<div class="units">';
+      for(let i=0;i<u.r;i++) unitsHtml += '<div class="unit resist"></div>';
+      for(let i=0;i<u.m;i++) unitsHtml += '<div class="unit milice"></div>';
+      for(let i=0;i<u.s;i++) unitsHtml += '<div class="unit soldier"></div>';
+      unitsHtml += '</div>';
+    }
+
+    // Conteos para misiones / airdrops
+    let badge = '';
+    if(G.airdrops[loc.id]){
+      const total = Object.values(G.airdrops[loc.id]).reduce((a,b)=>a+b,0);
+      badge = `<div class="count-badge">✈${total}</div>`;
+    }
+
+    div.innerHTML = `<div class="loc-name">${loc.name}</div>${iconHtml}${unitsHtml}${badge}`;
+    div.onclick = ()=>onBoardClick(loc.id);
+    board.appendChild(div);
+  });
+}
+
+function renderResources(){
+  const el = $('#resources');
+  el.innerHTML = RESOURCE_DEFS.map(r=>{
+    const c = G.resources[r.id];
+    return `<div class="res ${c===0?'zero':''}" onclick="showResMenu('${r.id}')">
+      <span class="res-icon">${r.icon}</span>
+      <div class="res-name">${r.name}</div>
+      <div class="res-count">${c}</div>
+    </div>`;
+  }).join('');
+}
+function showResMenu(resId){
+  if(G.phase!=='action') return;
+  const r = RESOURCE_DEFS.find(x=>x.id===resId);
+  showModal(`<h3>${r.icon} ${r.name}</h3><p>Tienes ${G.resources[resId]} ${r.name}.</p><p style="font-size:.7rem;color:#aaa">Los recursos se usan automáticamente al pagar costos de misión o al disparar.</p><div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>`);
+}
+
+function renderUnits(){
+  const el = $('#units-overview');
+  const onBoard = G.placedResist.length;
+  const onMilice = Object.values(G.placedMilice).reduce((a,b)=>a+b,0);
+  const onSoldier = Object.values(G.placedSoldiers).reduce((a,b)=>a+b,0);
+  el.innerHTML = `
+    <div class="unit-card"><div class="uc-icon"></div><div class="uc-count">${G.availableResist}</div><div class="uc-label">Casa Segura</div></div>
+    <div class="unit-card"><div class="uc-icon"></div><div class="uc-count">${G.cafeResist}</div><div class="uc-label">Reclutas Café</div></div>
+    <div class="unit-card"><div class="uc-icon"></div><div class="uc-count">${onBoard}</div><div class="uc-label">En Tablero</div></div>
+    <div class="unit-card"><div class="uc-icon milice"></div><div class="uc-count">${onMilice}</div><div class="uc-label">Milicias</div></div>
+    <div class="unit-card"><div class="uc-icon soldier"></div><div class="uc-count">${onSoldier}</div><div class="uc-label">Soldados</div></div>
+    <div class="unit-card"><div class="uc-icon"></div><div class="uc-count">${G.activatedThisDay.length}</div><div class="uc-label">Activados</div></div>
+  `;
+}
+
+function renderMissions(){
+  const el = $('#missions');
+  el.innerHTML = G.missions.map((mis,i)=>{
+    const progress = G.missionProgress[i];
+    const done = Object.keys(progress).length;
+    const complete = done === mis.tasks.length;
+    let tasksHtml = mis.tasks.map((t,j)=>{
+      const isDone = progress[j];
+      return `<div class="task ${isDone?'done':''}">
+        <div class="task-num">${t.n}</div>
+        <span>${t.label}</span>
+        <span class="task-cost">${Object.entries(t.cost).map(([k,v])=>v+'×'+RESOURCE_DEFS.find(r=>r.id===k).icon).join(' ')}</span>
+      </div>`;
+    }).join('');
+    return `<div class="mission ${complete?'complete':''}">
+      <h4>★ ${mis.name} ${complete?'✅':''}</h4>
+      <div style="font-size:.6rem;color:#5a4525;font-style:italic;">${mis.desc}</div>
+      <div style="font-size:.6rem;margin-top:2px;color:#5a4525;">Progreso: ${done}/${mis.tasks.length}</div>
+      <div class="tasks">${tasksHtml}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderPatrol(){
+  const el = $('#patrol-pile');
+  el.innerHTML = '';
+  // Mostrar las cartas boca abajo + la carta actual (última robada) abierta
+  G.patrolDeck.slice(0,5).forEach(()=>{
+    const c = document.createElement('div');
+    c.className = 'patrol-card back';
+    el.appendChild(c);
+  });
+  if(G.patrolDiscard.length>0){
+    const last = G.patrolDiscard[G.patrolDiscard.length-1];
+    const c = document.createElement('div');
+    c.className = 'patrol-card';
+    c.innerHTML = `<div class="pc-label">ÚLTIMA</div>${last.locs.map(id=>`<div class="pc-loc">${locById(id).icon} ${locById(id).name.substring(0,10)}</div>`).join('')}`;
+    el.appendChild(c);
+  }
+  // Info adicional
+  const info = document.createElement('div');
+  info.style.cssText = 'font-size:.7rem;color:#aaa;margin-left:8px;align-self:center;';
+  info.innerHTML = `<div>Mazo: ${G.patrolDeck.length}</div><div>Descarte: ${G.patrolDiscard.length}</div>`;
+  el.appendChild(info);
+}
+
+function renderSpareRooms(){
+  const el = $('#spare-rooms');
+  el.innerHTML = SPARE_ROOMS.map(sr=>{
+    const placed = Object.values(G.sparePlaced).includes(sr.id);
+    return `<div class="spare-room ${placed?'placed':''}" onclick="spareRoomInfo('${sr.id}')">
+      <div class="sr-icon">${sr.icon}</div>
+      <div class="sr-name">${sr.name}</div>
+      <div style="font-size:.6rem;">${placed?'✅ Colocada':'—'}</div>
+    </div>`;
+  }).join('');
+}
+function spareRoomInfo(srId){
+  const sr = SPARE_ROOMS.find(s=>s.id===srId);
+  const placed = Object.values(G.sparePlaced).includes(srId);
+  showModal(`
+    <h3>${sr.icon} ${sr.name}</h3>
+    <p>${sr.desc}</p>
+    <p style="font-size:.7rem;color:#aaa">${placed?'✅ Ya está colocada en el tablero.':'Toca una Habitación Libre vacía durante la fase de Acción para construirla.'}</p>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">OK</button></div>
+  `);
+}
+
+function renderActions(){
+  const el = $('#day-actions');
+  let btns = '';
+  if(G.phase==='action'){
+    const remaining = G.placedResist.filter(id=>!G.activatedThisDay.includes(id)).length;
+    btns += `<button class="btn primary" onclick="endAllWorkers()">⚡ Terminar Día (Saltar Acciones)</button>`;
+    btns += `<button class="btn" onclick="showHelp()">❓ Ayuda</button>`;
+  } else if(G.phase==='placement'){
+    btns += `<button class="btn" onclick="showHelp()">❓ Ayuda</button>`;
+  } else if(G.phase==='gameover'){
+    btns += `<button class="btn primary" onclick="newGame()">🔄 Nueva Partida</button>`;
+  } else {
+    btns += `<button class="btn" onclick="showHelp()">❓ Ayuda</button>`;
+  }
+  btns += `<button class="btn danger" onclick="confirmReset()">🗑️ Reiniciar</button>`;
+  el.innerHTML = btns;
+}
+
+function endAllWorkers(){
+  G.activatedThisDay = [...G.placedResist];
+  startMaintenance();
+}
+
+function confirmReset(){
+  showModal(`<h3>¿Reiniciar?</h3><p>Perderás todo el progreso.</p><div class="modal-actions"><button class="btn danger" onclick="newGame()">Sí, reiniciar</button><button class="btn" onclick="closeModal()">Cancelar</button></div>`);
+}
+
+function showHelp(){
+  showModal(`
+    <h3>📖 Cómo jugar</h3>
+    <p><b>DÍA</b> = 3 fases: Colocación → Acción → Mantenimiento.</p>
+    <p><b>Colocación</b>: coloca tus Trabajadores en el tablero, luego el juego roba cartas de Patrulla (azul) o Soldado (rojo) según el track de Soldados. ¡Cuidado con los arrestos!</p>
+    <p><b>Acción</b>: toca cada Trabajador y elige una acción. Algunas requieren recursos. Tras cada acción el Trabajador debe volver a una Casa Segura trazando una ruta libre (sin Patrullas ni Soldados).</p>
+    <p><b>Mantenimiento</b>: quitan Patrullas, los que no vuelvan son arrestados, y avanza el día.</p>
+    <p><b>Recursos</b>: 🔵Info 🟢Comida ⚪Medicina 🟡Moneda 🔴Arma ⚫Explosivo</p>
+    <p><b>Ganas</b> al completar las 2 Misiones. <b>Pierdes</b> si arrestan a todos, Moral=0 o llega Día 15.</p>
+    <p style="font-size:.7rem;color:#aaa">Toca cualquier ubicación para empezar.</p>
+    <div class="modal-actions"><button class="btn primary" onclick="closeModal()">OK</button></div>
+  `);
+}
+
+/* ===== START ===== */
+window.onload = ()=>{
+  newGame();
+  initOrientation();
+};
+
+function initOrientation(){
+  const updateOrientation = ()=>{
+    const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+    const isMobile = window.innerWidth < 900;
+    if(isPortrait && isMobile){
+      document.body.classList.add('portrait');
+    } else {
+      document.body.classList.remove('portrait');
+    }
+  };
+  updateOrientation();
+  window.addEventListener('orientationchange', updateOrientation);
+  window.addEventListener('resize', updateOrientation);
+}
+
+function forceLandscape(){
+  document.body.classList.remove('portrait');
+  log('Jugando en vertical — puedes volver a girar cuando quieras','info');
+}
+</script>
+
+</body>
+</html>
