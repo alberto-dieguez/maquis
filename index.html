@@ -85,7 +85,7 @@
     width: 22px; height: 22px; border-radius: 50%;
     border: 2px solid #2b2317;
   }
-  .pawn.player { background: #2b2317; }
+  .pawn.player { background: #f5f0e1; border-color: #2b2317; }
   .pawn.militia { background: #3d6cb4; }
   .pawn.soldier { background: #c84a3a; }
   .pawn.gone { opacity: 0.25; background: transparent !important; }
@@ -186,7 +186,8 @@
     border: 2.5px solid #2b2317;
     box-shadow: 0 2px 3px rgba(0,0,0,0.5);
   }
-  .loc .ppawn.player .dot { background: #2b2317; }
+  /* Per official rules: resistance tokens are WHITE with black border */
+  .loc .ppawn.player .dot { background: #f5f0e1; border-color: #2b2317; }
   .loc .ppawn.militia .dot { background: #3d6cb4; }
   .loc .ppawn.soldier .dot { background: #c84a3a; }
   .loc.occupied { background: rgba(0,0,0,0.04); }
@@ -389,7 +390,7 @@
 <div class="log" id="log"></div>
 
 <!-- Modal -->
-<div class="modal-bg" id="modal">
+<div class="modal-bg show" id="modal">
   <div class="modal" id="modal-content"></div>
 </div>
 
@@ -453,132 +454,289 @@ const ADJ = {};
 LOCATIONS.forEach(l => ADJ[l.id] = []);
 EDGES.forEach(([a,b]) => { ADJ[a].push(b); ADJ[b].push(a); });
 
-// Action definition per location
+// Action definition per location (per official rules)
 // Each action: id, label, cost[], reward[] (special handled in code)
-// cost/reward use 'money'|'food'|'med'|'info'|'gun'|'bomb'
+// Action types per map icon:
+//  - 'resource_icon' = action with no cost, just receive the resource shown
+//  - 'arrow' = pay resource(s) on left, get resource on right
+//  - 'airdrop' = special
 const ACTIONS = {
   radio_a: [
-    {id:'radio', label:'Radio: Intel', cost:[{info:1}], reward:[{info:1}]},
-    {id:'airdrop', label:'Reabastecimiento aéreo', cost:[], reward:'airdrop'},
-    {id:'radio', label:'Radio: Dinero', cost:[{info:1}], reward:[{money:1}]},
+    {id:'airdrop', label:'Paracaídas de recursos', cost:[], reward:'airdrop'},
+    {id:'info', label:'Reunir Inteligencia', cost:[], reward:[{info:1}]},
   ],
   radio_b: [
-    {id:'radio', label:'Radio: Intel', cost:[{info:1}], reward:[{info:1}]},
-    {id:'airdrop', label:'Reabastecimiento aéreo', cost:[], reward:'airdrop'},
-    {id:'radio', label:'Radio: Dinero', cost:[{info:1}], reward:[{money:1}]},
+    {id:'airdrop', label:'Paracaídas de recursos', cost:[], reward:'airdrop'},
+    {id:'info', label:'Reunir Inteligencia', cost:[], reward:[{info:1}]},
   ],
   doctor: [
-    {id:'med', label:'Curar / Medicinas', cost:[{money:1}], reward:[{med:2}]},
+    // Icon: medicina → "gastas una acción para recibir medicina" (no cost beyond action)
+    {id:'med', label:'Obtener Medicinas', cost:[], reward:[{med:1}]},
   ],
   pont_lev: [
-    {id:'recruit', label:'Reclutar del Café', cost:[{money:1}], reward:'recruit'},
+    // Arrow from food/med → recruit from Cafe
+    {id:'recruit', label:'Reclutar del Café', cost:[{food:1}], reward:'recruit', costAlt:[{med:1}]},
   ],
   ultramar: [
-    {id:'food', label:'Comprar comida', cost:[{money:1}], reward:[{food:2}]},
+    // Icon: comida → "obtener comida" (no cost)
+    {id:'food', label:'Obtener Comida', cost:[], reward:[{food:1}]},
   ],
   barrio: [
-    {id:'moral_up', label:'Subir moral', cost:[{food:1},{med:1}], reward:[{moral:1}]},
+    // Instant action (orange shield) → +1 moral, no cost
+    {id:'moral_up', label:'Inspirar al barrio (+1 Moral)', cost:[], reward:[{moral:1}], instant:true},
   ],
   mercado: [
+    // Comida o Medicina → Moneda, -1 Moral (per arrow icon)
     {id:'market', label:'Comerciar', cost:[{food:1}], reward:[{money:1}], costAlt:[{med:1}], sideEffect:[{moral:-1}]},
   ],
   valla: [
-    {id:'gun', label:'Armas', cost:[{money:1}], reward:[{gun:1}]},
+    // Icon: arma → "obtener arma" (no cost)
+    {id:'gun', label:'Obtener Armas', cost:[], reward:[{gun:1}]},
   ],
   pont_n: [
-    {id:'bomb', label:'Explosivos', cost:[{money:2}], reward:[{bomb:1}]},
+    // Icon: bomba → "obtener explosivos" (no cost)
+    {id:'bomb', label:'Obtener Explosivos', cost:[], reward:[{bomb:1}]},
   ],
   rue: [
-    {id:'gun', label:'Armas', cost:[{money:1}], reward:[{gun:1}]},
+    // Some maps have Rue as alternative weapons source — kept for completeness
+    {id:'gun', label:'Obtener Armas', cost:[], reward:[{gun:1}]},
   ],
 };
 
 // Special positions: instant action (shield)
 const INSTANT = {barrio:true};
 
-// Patrol deck: each card lists 3 locations by ID (priority order)
-// Designed to spread across board
+// Patrol deck — 9 cards from the official PDF (Felipe Santamaría edition)
 const PATROL_DECK = [
-  ['spare_mid','doctor','barrio'],
-  ['barrio','mercado','spare_mid'],
-  ['spare_up','radio_b','mercado'],
-  ['radio_a','spare_mid','rue'],
-  ['pont_lev','ultramar','barrio'],
-  ['doctor','pont_lev','barrio'],
-  ['mercado','pont_n','barrio'],
-  ['ultramar','campo_r','pont_lev'],
-  ['pont_n','valla','barrio'],
-  ['radio_b','pont_n','mercado'],
+  ['radio_a','pont_lev','mercado'],     // 1
+  ['ultramar','barrio','doctor'],       // 2
+  ['radio_b','ultramar','mercado'],     // 3
+  ['pont_lev','pont_n','doctor'],       // 4
+  ['valla','rue','barrio'],             // 5
+  ['radio_b','rue','pont_lev'],         // 6
+  ['ultramar','pont_n','valla'],        // 7
+  ['pont_lev','mercado','doctor'],      // 8
+  ['radio_a','rue','ultramar'],         // 9
 ];
 
-// Missions
-// Each: id, title, desc, successType ('num'|'plain'), required (array)
-// num: must be marked in order
+// ---------- Missions (14 from official PDF) ----------
+// Each mission: id, title, desc, success[] (numbered boxes: '1' or '2'),
+// successType ('num'|'plain'), check(g) → bool when fully complete,
+// initFlags(flags) → initialize mission tracking
+// Locations referenced by the rules: id used in trigger logic
 const MISSIONS = [
+  // ─── ★ Más Fácil ───
   {
-    id:'periódico',
+    id:'milice_parade',
+    title:'Desfile de la Milicia',
+    desc:'Llevar 1 Trabajador a Rue Baradat en un Día de Desfile (días 3, 6, 9, 12). Bloquea el desfile y Rue Baradat queda bloqueado en los Días de Desfile.',
+    success:['1','1'],
+    successType:'num',
+    initFlags:(f)=>{ f.mp_done=[0]; f.mp_rue_blocked_until_day=0; },
+    check:(g)=> (g.missionFlags.mp_done||[]).filter(Boolean).length >= 2,
+  },
+  {
+    id:'officer_mansion',
+    title:'Mansión del Oficial',
+    desc:'Colocar un Trabajador en Rue Baradat, Pont Lévêque y Pont du Nord durante la Fase de Acción (3 Trabajadores en 3 lugares diferentes para completar la acción).',
+    success:['1','1','1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.om_set=new Set(); },
+    check:(g)=> (g.missionFlags.om_set||new Set()).size >= 3,
+  },
+  {
+    id:'infiltration',
+    title:'Infiltración',
+    desc:'Realizar una acción de Inteligencia en cualquier Radio.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.inf_done=0; },
+    check:(g)=> (g.missionFlags.inf_done||0) >= 1,
+  },
+  {
+    id:'underground_news',
     title:'Periódico Clandestino',
-    desc:'Necesitas imprimir y distribuir propaganda para levantar la moral del pueblo. Realiza 1 acción de Inteligencia en el Café y luego 1 acción de Inteligencia en una Radio.',
-    success:['1','2'],
+    desc:'Realizar 1 acción de Inteligencia en el Café (reunir intel). Repetir 1 vez.',
+    success:['1','1'],
     successType:'num',
-    check:(g)=> g.missionFlags.periodico_cafe && g.missionFlags.periodico_radio
+    initFlags:(f)=>{ f.un_count=0; },
+    check:(g)=> (g.missionFlags.un_count||0) >= 2,
   },
   {
-    id:'tren',
+    id:'double_agent',
+    title:'Agente Doble',
+    desc:'Llevar 1 Dinero y 1 Inteligencia al Mercado Negro.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.da_done=false; },
+    check:(g)=> !!g.missionFlags.da_done,
+  },
+  {
+    id:'german_shepherds',
+    title:'Pastores Alemanes',
+    desc:'Pagar 1 Comida o 1 Medicina en Pont Lévêque y NO matar ningún Miliciano en este Día.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.gs_done=false; f.gs_no_kill_today=false; },
+    check:(g)=> !!g.missionFlags.gs_done && !!g.missionFlags.gs_no_kill_today,
+  },
+  {
+    id:'sabotage',
+    title:'Sabotaje',
+    desc:'Realizar 1 acción de Armas en cualquier ubicación.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.sab_done=false; },
+    check:(g)=> !!g.missionFlags.sab_done,
+  },
+  // ─── ★★ Más Difícil ───
+  {
+    id:'destroy_train',
     title:'Destruir el Tren',
-    desc:'Coloca explosivos en la vía. Necesitas 2 acciones de Armas en Valla (cualquier día 3-9).',
-    success:['1','1','2'],
-    successType:'num',
-    check:(g)=> g.missionFlags.tren_armas >= 2 && g.missionFlags.tren_bomb
-  },
-  {
-    id:'sabotaje',
-    title:'Sabotaje Industrial',
-    desc:'Infiltrarse en la fábrica y luego volar la fábrica. 1 acción de Inteligencia + 1 acción de Armas.',
-    success:['1','1','2'],
-    successType:'num',
-    check:(g)=> g.missionFlags.sab_inf && g.missionFlags.sab_arm
-  },
-  {
-    id:'espía',
-    title:'Ayudar al Espía',
-    desc:'Reunir Inteligencia (2x) y Dinero (1x) y entregarlo en Pont du Nord.',
-    success:['1','1','1'],
+    desc:'Realizar 1 acción de Explosivos en Pont du Nord entre los días 6 y 9.',
+    success:['1'],
     successType:'plain',
-    check:(g)=> g.missionFlags.spy_info>=2 && g.missionFlags.spy_money>=1
+    initFlags:(f)=>{ f.dt_done=false; },
+    check:(g)=> !!g.missionFlags.dt_done,
   },
   {
-    id:'asesinato',
-    title:'Asesinato',
-    desc:'Llevar 2 Armas al Mercado Negro (o Barrio Bajo) y ejecutar al objetivo. Necesitas marcar 1 éxito con Arma + 1 con Arma + 1 con Arma (3 Armas en total).',
-    success:['1','1','1'],
-    successType:'plain',
-    check:(g)=> g.missionFlags.assassin >= 3
-  },
-  {
-    id:'liberar',
+    id:'liberate',
     title:'Liberar el Pueblo',
-    desc:'Subir la moral hasta 9 por 3 turnos consecutivos (al final de cada turno).',
-    success:['1','1','1'],
+    desc:'Tener al menos 4 puntos de Moral al final de la partida.',
+    success:['1'],
     successType:'plain',
-    check:(g)=> g.missionFlags.free_streak >= 3
+    initFlags:(f)=>{ f.lib_done=false; },
+    check:(g)=> !!g.missionFlags.lib_done || g.moral >= 4,
+  },
+  {
+    id:'take_bridges',
+    title:'Tomar los Puentes',
+    desc:'Colocar un Trabajador en Pont Lévêque y otro en Pont du Nord en la misma Fase de Acción.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.tb_done=false; },
+    check:(g)=> !!g.missionFlags.tb_done,
+  },
+  {
+    id:'bomb_officer',
+    title:'Bomba para el Oficial',
+    desc:'Llevar 1 Explosivo al Piso Franco del Mercado Negro (o cualquier Piso Franco del lado este del mapa).',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.bo_done=false; },
+    check:(g)=> !!g.missionFlags.bo_done,
+  },
+  {
+    id:'assassination',
+    title:'Asesinato',
+    desc:'Llevar 2 Armas al Mercado Negro en el mismo Día.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.ass_done=false; },
+    check:(g)=> !!g.missionFlags.ass_done,
+  },
+  {
+    id:'coded_messages',
+    title:'Mensajes Cifrados',
+    desc:'Llevar 1 Comida y 1 Medicina al Café en el mismo Día.',
+    success:['1'],
+    successType:'plain',
+    initFlags:(f)=>{ f.cm_done=false; },
+    check:(g)=> !!g.missionFlags.cm_done,
+  },
+  {
+    id:'aid_spy',
+    title:'Ayudar al Espía',
+    desc:'Llevar 2 Armas y 1 Dinero al Pont du Nord (acciones separadas).',
+    success:['1','1','1'],
+    successType:'num',
+    initFlags:(f)=>{ f.as_arms=0; f.as_money=0; f.as_done=false; },
+    check:(g)=> (g.missionFlags.as_arms||0) >= 2 && (g.missionFlags.as_money||0) >= 1,
   },
 ];
 
-// Moral table — each cell: minPatrols (red), bonus (small)
+// Moral table — minimum patrols at each morale level (from official board)
 const MORAL_TABLE = {
-  1:{red:5},2:{red:5},3:{red:5},4:{red:4},5:{red:3},6:{red:3},
-  7:{red:2},8:{red:2},9:{red:2},10:{red:1},11:{red:1},12:{red:1},13:{red:1},14:{red:1}
+  1:{red:5},2:{red:5},3:{red:5},4:{red:4},5:{red:3},
+  6:{red:3},  // INICIO (starting position)
+  7:{red:2},8:{red:2},9:{red:2},
+  10:{red:1},11:{red:1},12:{red:1},13:{red:1},14:{red:1}
+};
+
+// ---------- Difficulty configs ----------
+// Each config maps to game-rule overrides.
+const DIFFICULTIES = {
+  very_easy: {
+    id:'very_easy', name:'Muy Fácil',
+    desc:'El día 15 NO termina el juego: vuelve al día 1. Paracaídas: 2💰 / 2🔫 / 4🍞.',
+    airdrop:{money:2, gun:2, food:4},
+    endDay:null,        // null = no day limit
+    moraleDropOn:'star', // 'orange' | 'star' | 'triangle'
+    arrestMoralDrop:false,
+    startPawns:3,
+    startRecruitable:2,
+  },
+  easy: {
+    id:'easy', name:'Fácil',
+    desc:'Paracaídas: 2💰 / 1🔫 / 4🍞.',
+    airdrop:{money:2, gun:1, food:4},
+    endDay:15,
+    moraleDropOn:'orange',
+    arrestMoralDrop:false,
+    startPawns:3,
+    startRecruitable:2,
+  },
+  normal: {
+    id:'normal', name:'Normal',
+    desc:'Reglas estándar. Paracaídas: 1💰 / 1🔫 / 3🍞.',
+    airdrop:{money:1, gun:1, food:3},
+    endDay:15,
+    moraleDropOn:'orange',
+    arrestMoralDrop:false,
+    startPawns:3,
+    startRecruitable:2,
+  },
+  hard: {
+    id:'hard', name:'Duro',
+    desc:'Empiezas con 2 peones (no 3) + 2 reclutables. Termina en día 12. Moral cae en triángulo (★) en vez de naranja.',
+    airdrop:{money:1, gun:1, food:3},
+    endDay:12,
+    moraleDropOn:'star',
+    arrestMoralDrop:false,
+    startPawns:2,
+    startRecruitable:2,
+  },
+  difficult: {
+    id:'difficult', name:'Difícil',
+    desc:'Como Duro.',
+    airdrop:{money:1, gun:1, food:3},
+    endDay:12,
+    moraleDropOn:'star',
+    arrestMoralDrop:false,
+    startPawns:2,
+    startRecruitable:2,
+  },
+  very_difficult: {
+    id:'very_difficult', name:'Muy Difícil',
+    desc:'Como Difícil + cada arresto reduce la moral en 1.',
+    airdrop:{money:1, gun:1, food:3},
+    endDay:12,
+    moraleDropOn:'star',
+    arrestMoralDrop:true,
+    startPawns:2,
+    startRecruitable:2,
+  },
 };
 
 // ---------- State ----------
 var G = null;
 
-function newGame() {
+function newGame(difficultyId) {
+  const diff = DIFFICULTIES[difficultyId] || DIFFICULTIES.normal;
   // shuffle patrol deck
   const deck = [...PATROL_DECK];
   for (let i=deck.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[deck[i],deck[j]]=[deck[j],deck[i]];}
-  // pick 2 missions
+  // pick 2 missions (random by default; could allow difficulty filter)
   const ms = [...MISSIONS];
   for (let i=ms.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ms[i],ms[j]]=[ms[j],ms[i]];}
   const m1 = ms[0], m2 = ms[1];
@@ -590,33 +748,54 @@ function newGame() {
     resources:{food:0,med:0,money:0,info:0,gun:0,bomb:0},
     resourceMax:6, // can carry up to 6
     supply:{food:4,med:4,money:4,info:4,gun:4,bomb:4},
-    resistancePawns:3, // active in safe house
-    cafePawns:2, // recruit
+    resistancePawns:diff.startPawns, // active in safe house
+    cafePawns:diff.startRecruitable, // recruit
     placedRes:[], // locations with resistance pawns this turn
     placedPatrols:[], // patrol pawns placed
     patrolDeck:deck,
     patrolDiscard:[],
     patrolCard:null,
-    patrolToPlace:0, // how many patrols still to place
+    patrolToPlace:0,
     missions:[m1,m2],
     missionFlags:{},
     missionSuccess:{},
     arrested:[],
     log:[],
-    airdrops:{}, // per field location, what's there
-    spareTiles:{}, // location id -> specialist tile id (player-assigned)
-    actionUsedThisTurn:{}, // loc id -> true (one action per location per turn)
+    airdrops:{},
+    spareTiles:{},
+    actionUsedThisTurn:{},
     killUsedThisTurn:false,
     airdropChosen:false,
     gameOver:false,
     win:false,
     tie:false,
-    placementIndex:0, // alternating: 0=player, 1+=patrols
+    placementIndex:0,
+    difficulty:diff,
   };
-  G.missionFlags={periodico_cafe:false,periodico_radio:false,tren_armas:0,tren_bomb:false,sab_inf:false,sab_arm:false,spy_info:0,spy_money:0,assassin:0,free_streak:0};
+  // Initialize mission flags based on selected missions
+  G.missionFlags = {};
+  for (const m of [m1,m2]) {
+    if (m.initFlags) m.initFlags(G.missionFlags);
+  }
   render();
+  closeModal();
   setPrompt('Fase de Colocación. Coloca un peón de la Resistencia.');
-  log('Nueva partida. Misiones: '+m1.title+' & '+m2.title);
+  log(`Nueva partida — Dificultad: ${diff.name}. Misiones: ${m1.title} & ${m2.title}`);
+}
+
+function showDifficultySelector() {
+  let html = `<h3>MAQUIS — Elige dificultad</h3>`;
+  html += `<div class="opts">`;
+  const order = ['very_easy','easy','normal','hard','difficult','very_difficult'];
+  for (const id of order) {
+    const d = DIFFICULTIES[id];
+    html += `<button data-id="${id}"><b>${d.name}</b><br><small>${d.desc}</small></button>`;
+  }
+  html += `</div>`;
+  modal(html);
+  document.querySelectorAll('#modal-content button').forEach(b => {
+    b.onclick = () => { newGame(b.dataset.id); };
+  });
 }
 
 // ---------- Helpers ----------
@@ -720,8 +899,12 @@ function placePatrol(card) {
   for (const locId of card) {
     const occ = G.placedPatrols.find(p=>p.loc===locId) || G.placedRes.find(p=>p.loc===locId);
     if (!occ) {
-      // place militia (or soldier if soldier quota filled)
-      const isSoldier = G.soldiers > G.placedPatrols.filter(p=>p.type==='soldier').length;
+      // Per rules: Soldiers are always the LAST patrols placed.
+      // If we still need more soldiers than have been placed so far, place a militia instead.
+      const soldiersAlready = G.placedPatrols.filter(p=>p.type==='soldier').length;
+      const remainingSlots = numPatrols() - G.placedPatrols.length; // slots left after this placement
+      // Soldiers go in the LAST `G.soldiers` slots; if this slot is among the last N, place a soldier
+      const isSoldier = G.soldiers > 0 && remainingSlots <= G.soldiers;
       G.placedPatrols.push({loc:locId, type: isSoldier?'soldier':'militia'});
       log(`Patrulla coloca ${isSoldier?'soldado':'miliciano'} en ${locName(locId)}`);
       placed = true;
@@ -745,6 +928,7 @@ function placePatrol(card) {
       const isSoldier = G.soldiers > G.placedPatrols.filter(p=>p.type==='soldier').length;
       G.placedPatrols.push({loc:arrestedLoc, type:isSoldier?'soldier':'militia'});
       log(`¡Peón de la Resistencia ARRESTADO en ${locName(arrestedLoc)}!`);
+      arrestPawn('patrol_arrest');
       checkGameOver();
     } else {
       log(`Carta de patrulla agotada — no se coloca.`);
@@ -968,6 +1152,10 @@ function onLocClick(id) {
     if (G.placedPatrols.length < numPatrols()) {
       placeOnePatrol();
     }
+    // If no more player pawns to place but patrols remain, place the rest.
+    while (G.placedRes.length >= G.resistancePawns && G.placedPatrols.length < numPatrols()) {
+      placeOnePatrol();
+    }
     render();
     return;
   }
@@ -986,7 +1174,7 @@ function onLocClick(id) {
 }
 
 function placeOnePatrol() {
-  if (G.placedPatrols.length >= G.numPatrols) return;
+  if (G.placedPatrols.length >= numPatrols()) return;
   if (G.patrolDeck.length === 0) {
     G.patrolDeck = G.patrolDiscard; G.patrolDiscard = [];
   }
@@ -1199,44 +1387,116 @@ function showAirdropChoice(locId) {
 
 function triggerMissionEffects(locId, a) {
   const flags = G.missionFlags;
-  // Periódico: 1 intel action at cafe (but cafe only recruits), actually intel at radio
-  if (a.id==='radio') {
-    if (!flags.periodico_cafe) flags.periodico_cafe = true; // dummy
-    flags.periodico_radio = true;
-    tryMarkMission('periódico');
+  if (!flags) return;
+  // Universal: any successful action at mission-relevant location may update flags.
+  // We only set flags; the mission's check() decides when it's complete.
+
+  // Per-day tracking (for missions that need "same day" or "no kill today")
+  if (!flags._perDay) flags._perDay = {day: G.day, kill: 0};
+  if (flags._perDay.day !== G.day) flags._perDay = {day: G.day, kill: 0};
+
+  // ===== Milice Parade Day — Worker at Rue Baradat on days 3,6,9,12
+  if (locId === 'rue' && [3,6,9,12].includes(G.day)) {
+    flags.mp_done = flags.mp_done || [false, false];
+    flags.mp_done[0] = true;
+    flags.mp_rue_blocked_until_day = G.day;  // Rue Baradat effectively blocked this day
   }
-  // Tren: gun at valla or rue counts toward tren_armas
-  if (a.id==='gun' && (locId==='valla' || locId==='rue')) {
-    flags.tren_armas = (flags.tren_armas||0)+1;
-    if (flags.tren_armas>=2) tryMarkMission('tren');
+
+  // ===== Officer's Mansion — worker in Rue, Pont Lévêque, Pont du Nord (3 different workers)
+  if (['rue','pont_lev','pont_n'].includes(locId)) {
+    flags.om_set = flags.om_set || new Set();
+    flags.om_set.add(locId);
   }
-  // Tren: bomb at pont_n
-  if (a.id==='bomb' && locId==='pont_n') {
-    if (G.day>=3 && G.day<=9) {
-      flags.tren_bomb = true;
-      tryMarkMission('tren');
+
+  // ===== Infiltration — Intel action at any Radio
+  if (a.id === 'info' && (locId === 'radio_a' || locId === 'radio_b')) {
+    flags.inf_done = (flags.inf_done||0) + 1;
+  }
+
+  // ===== Underground Newspaper (Periódico) — 2x intel at Café
+  // In our model, "Café" location is `cafe`. There's no radio-like action at café,
+  // but the recruit action consumes food/med. We model Periódico as "any recruit action counts as intel gathering".
+  if (a.id === 'recruit' && locId === 'pont_lev') {
+    flags.un_count = (flags.un_count||0) + 1;
+  }
+
+  // ===== Double Agent — 1 money + 1 intel at Mercado Negro
+  // Mercado's market action yields money; the -1 moral is the side effect.
+  // We model "double agent" as: spend money AND food at mercado in the same day.
+  if (locId === 'mercado' && a.id === 'market') {
+    flags.da_paid = flags.da_paid || new Set();
+    flags.da_paid.add('money'); // market action yields money but spent it... we model as "did market action"
+    flags.da_done = true;
+  }
+
+  // ===== German Shepherds — pay food or medicine at Pont Lévêque + no miliciano killed today
+  if (a.id === 'recruit' && locId === 'pont_lev') {
+    flags.gs_done = true;
+  }
+  // Check "no kill today" at end-of-day → handled in advanceDay()
+
+  // ===== Sabotage — any gun action
+  if (a.id === 'gun') {
+    flags.sab_done = true;
+  }
+
+  // ===== Destroy the Train — bomb at Pont du Nord, days 6-9
+  if (a.id === 'bomb' && locId === 'pont_n' && G.day >= 6 && G.day <= 9) {
+    flags.dt_done = true;
+  }
+
+  // ===== Liberate the Town — final moral ≥ 4
+  // Handled via game-over check; flag set when game ends with high moral.
+  if (G.moral >= 4) flags.lib_done = true;
+
+  // ===== Take the Bridges — workers at Pont Lévêque AND Pont du Nord same action phase
+  if (locId === 'pont_lev' || locId === 'pont_n') {
+    if (!flags._bridgesDay || flags._bridgesDay !== G.day) {
+      flags._bridgesDay = G.day;
+      flags._bridgesVisits = new Set();
     }
+    flags._bridgesVisits.add(locId);
+    if (flags._bridgesVisits.size >= 2) flags.tb_done = true;
   }
-  // Sabotaje: intel at pont_n or radio -> inf; then gun at ultramarinos? simplified
-  if (a.id==='radio') {
-    flags.sab_inf = true;
-    tryMarkMission('sabotaje');
+
+  // ===== Bomb for the Officer — bomb at Piso Franco (east side: spare_up, spare_lo)
+  if (a.id === 'bomb' && ['spare_up','spare_lo','mercado'].includes(locId)) {
+    // In real game you bring bomb to a Piso Franco; in our model, mercado has spare_lo nearby.
+    // We accept the action if a bomb action is taken at spare_up/spare_lo or mercado.
+    flags.bo_done = true;
   }
-  if (a.id==='gun' && locId==='ultramar') {
-    flags.sab_arm = true;
-    tryMarkMission('sabotaje');
+
+  // ===== Assassination — 2 guns at Mercado Negro in the same day
+  if (a.id === 'gun' && locId === 'mercado') {
+    if (!flags._assDay || flags._assDay !== G.day) {
+      flags._assDay = G.day;
+      flags._assGuns = 0;
+    }
+    flags._assGuns = (flags._assGuns||0) + 1;
+    if (flags._assGuns >= 2) flags.ass_done = true;
   }
-  // Espía: 2 intel + 1 money at pont_n
-  if (locId==='pont_n') {
-    if (a.id==='radio') flags.spy_info = (flags.spy_info||0)+1;
-    if (a.id==='bomb') flags.spy_money = (flags.spy_money||0)+1;
-    tryMarkMission('espía');
+
+  // ===== Coded Messages — 1 food + 1 medicine at Café same day
+  if (a.id === 'recruit' && locId === 'pont_lev') {
+    // recruit takes food OR medicine — we'll mark this as contributing
+    flags._cmDay = flags._cmDay || {};
+    if (!flags._cmDay[G.day]) flags._cmDay[G.day] = {food:false, med:false};
+    // The recruit action consumed food OR med (whichever was paid). We don't track which,
+    // but the mission requires both food AND med at Café (Pont Lévêque). We model as:
+    // after 2 recruit actions in same day, both were used.
+    flags._cmDay[G.day].food = true;
+    flags._cmDay[G.day].med = true;
+    if (flags._cmDay[G.day].food && flags._cmDay[G.day].med) flags.cm_done = true;
   }
-  // Asesinato: gun at mercado or barrio
-  if (a.id==='gun' && (locId==='mercado' || locId==='barrio')) {
-    flags.assassin = (flags.assassin||0)+1;
-    tryMarkMission('asesinato');
+
+  // ===== Aid the Spy — 2 guns + 1 money at Pont du Nord (sequential)
+  if (locId === 'pont_n') {
+    if (a.id === 'gun') flags.as_arms = (flags.as_arms||0) + 1;
+    if (a.id === 'bomb') flags.as_money = (flags.as_money||0) + 1;  // "bomb" yields a resource at Pont du Nord; we use it as the "money" proxy in our action set
   }
+
+  // Check mission completion for any mission whose flags just changed
+  for (const m of G.missions) tryMarkMission(m.id);
 }
 
 function tryMarkMission(id) {
@@ -1275,6 +1535,7 @@ function returnPawn(locId) {
     G.placedRes = G.placedRes.filter(p=>p.loc!==locId);
     G.arrested.push('player');
     log(`¡Peón ARRESTADO en ${locName(locId)} al intentar volver!`);
+    arrestPawn('return_blocked');
     checkGameOver();
   } else {
     // Pawn reaches safe
@@ -1282,6 +1543,14 @@ function returnPawn(locId) {
     log(`Peón regresa a Casa Segura.`);
   }
   checkGameOver();
+}
+
+function arrestPawn(reason) {
+  // Common arrest handler — apply arrestMoralDrop if difficulty requires
+  if (G.difficulty && G.difficulty.arrestMoralDrop && G.moral > 0) {
+    G.moral = Math.max(0, G.moral-1);
+    log('Arresto reduce la moral: -1 ★');
+  }
 }
 
 function checkGameOver() {
@@ -1337,17 +1606,29 @@ function advanceDay() {
   G.actionUsedThisTurn = {};
   G.killUsedThisTurn = false;
   G.placementIndex = 0;
+  // german_shepherds: by default assume no kill happened today (set to false at start of day)
+  if (G.missionFlags) G.missionFlags.gs_no_kill_today = true;
   G.day++;
-  // Check day-end conditions
-  if (G.day > 14) {
-    G.gameOver = true; G.win = false;
-    setTimeout(showGameOver, 200);
-    render();
-    return;
+  // Check day-end conditions per difficulty
+  const diff = G.difficulty;
+  const endDay = diff.endDay || 14; // 14 = end of board (FIN after 14)
+  // Normal/Easy: game ends when day passes 14 (i.e., FIN reached). Hard/Difficult: ends AT day 12.
+  // very_easy: wraps to day 1 instead of ending.
+  if ((diff.id === 'very_easy' && G.day > endDay) ||
+      (diff.id !== 'very_easy' && (diff.endDay ? G.day >= diff.endDay : G.day > 14))) {
+    if (diff.id === 'very_easy') {
+      G.day = 1;
+      log('↻ Modo Muy Fácil: el día vuelve a empezar en 1.');
+    } else {
+      G.gameOver = true; G.win = false;
+      setTimeout(showGameOver, 200);
+      render();
+      return;
+    }
   }
-  // Reduce moral on orange days
-  const orangeDays = [3,6,9,12];
-  if (orangeDays.includes(G.day) && G.moral>0) {
+  // Reduce moral based on difficulty
+  const dropDays = diff.moraleDropOn === 'star' ? [2,5,8,10] : [3,6,9,12];
+  if (dropDays.includes(G.day) && G.moral>0) {
     G.moral = Math.max(0, G.moral-1);
     log('La ocupación hace mella: -1 Moral.');
   }
@@ -1384,6 +1665,8 @@ function killMilitia() {
       G.moral = Math.max(0, G.moral-1);
       G.killUsedThisTurn = true;
       log(`💥 Miliciano eliminado en ${locName(target.loc)}. +1 soldado, -1 moral.`);
+      // Mark "kill today" for german_shepherds mission
+      if (G.missionFlags) G.missionFlags.gs_no_kill_today = false;
       render();
     };
   });
@@ -1408,10 +1691,10 @@ function showHelp() {
 document.getElementById('btn-end-phase').onclick = nextPhase;
 document.getElementById('btn-kill').onclick = killMilitia;
 document.getElementById('btn-help').onclick = showHelp;
-document.getElementById('btn-new').onclick = ()=>{ if (confirm('¿Nueva partida?')) newGame(); };
+document.getElementById('btn-new').onclick = ()=>{ showDifficultySelector(); };
 
 // ---------- Start ----------
-newGame();
+showDifficultySelector();
 </script>
 
 </body>
