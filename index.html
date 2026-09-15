@@ -251,29 +251,39 @@
      It only highlights the active day; the painted numbers belong to the map. */
   .day-track {
     position: absolute;
-    left: 12px;       /* overlay the map's track column */
+    left: 12px;
     top: 22px;
     bottom: 22px;
     width: 32px;
     display: flex; flex-direction: column;
     z-index: 5;
     pointer-events: auto;
-    /* No background — transparent overlay */
   }
   .day-cell {
-    flex: 1; display: flex; align-items: center; justify-content: center;
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: bold;
-    color: transparent;  /* hide duplicate numbers — map shows them */
+    color: transparent;
     border-radius: 3px;
     margin: 1px 0;
+    position: relative;  /* for active pseudo-element */
   }
   .day-cell.orange { color: transparent; }
   .day-cell.star { color: transparent; }
+  /* Active day: inlay highlight that fits inside the cell, NOT a border that overflows */
   .day-cell.active {
-    background: rgba(200,74,58,0.55);   /* highlight active day */
     color: transparent;
+    background: transparent;
+  }
+  .day-cell.active::before {
+    content: '';
+    position: absolute;
+    inset: 3px 4px;   /* small inset to stay within cell */
+    border-radius: 4px;
+    background: rgba(200,74,58,0.35);
     border: 2px solid #c84a3a;
-    box-shadow: 0 0 6px #2b2317;
+    box-shadow: 0 0 8px rgba(200,74,58,0.6);
+    pointer-events: none;
   }
 
   /* River not needed — already in map */
@@ -703,7 +713,7 @@ const LOCATIONS = [
   // South row
   {id:'campo_l', name:'Campo Izq',    x:14, y:87, type:'field'},
   {id:'cafe',    name:'Café',         x:35, y:84, type:'cafe'},
-  {id:'safe',    name:'Casa Segura',  x:51, y:88, type:'safe'},
+  {id:'safe',    name:'Casa Segura',  x:54, y:86, type:'safe'},
   {id:'campo_r', name:'Campo Der',    x:72, y:87, type:'field'},
 ];
 
