@@ -707,7 +707,7 @@ const LOCATIONS = [
   // Lower mid row
   {id:'radio_a', name:'Radio A',      x:15, y:60, type:'radio'},
   {id:'spare_mid',name:'Piso Franco', x:35, y:64, type:'spare'},
-  {id:'pont_lev',name:'Pont Lévêque', x:54, y:69, type:'town'},
+  {id:'pont_lev',name:'Pont Lévêque', x:54, y:75, type:'town'},
   {id:'ultramar',name:'Ultramarinos', x:72, y:69, type:'town'},
   {id:'spare_lo',name:'Piso Franco',  x:89, y:75, type:'spare'},
   // South row
@@ -752,50 +752,53 @@ EDGES.forEach(([a,b]) => { ADJ[a].push(b); ADJ[b].push(a); });
 //  - 'arrow' = pay resource(s) on left, get resource on right
 //  - 'airdrop' = special
 const ACTIONS = {
+  // Rue Baradat: no action (per user rules)
+  rue: [],
+  // Valla: 1 money → 1 gun ⭐ (instant action)
+  valla: [
+    {id:'gun', label:'Comprar Pistola (1 dinero)', cost:[{money:1}], reward:[{gun:1}], instant:true},
+  ],
+  // Pont du Nord: no action
+  pont_n: [],
+  // Radio A/B: 1 info OR airdrop
   radio_a: [
-    {id:'airdrop', label:'Paracaídas de recursos', cost:[], reward:'airdrop'},
-    {id:'info', label:'Reunir Inteligencia', cost:[], reward:[{info:1}]},
+    {id:'airdrop', label:'Lanzamiento aéreo', cost:[], reward:'airdrop'},
+    {id:'info', label:'Reunir 1 Información', cost:[], reward:[{info:1}]},
   ],
   radio_b: [
-    {id:'airdrop', label:'Paracaídas de recursos', cost:[], reward:'airdrop'},
-    {id:'info', label:'Reunir Inteligencia', cost:[], reward:[{info:1}]},
+    {id:'airdrop', label:'Lanzamiento aéreo', cost:[], reward:'airdrop'},
+    {id:'info', label:'Reunir 1 Información', cost:[], reward:[{info:1}]},
   ],
+  // Doctor: +1 medicina
   doctor: [
-    // Icon: medicina → "gastas una acción para recibir medicina" (no cost beyond action)
-    {id:'med', label:'Obtener Medicinas', cost:[], reward:[{med:1}]},
+    {id:'med', label:'+1 Medicina', cost:[], reward:[{med:1}]},
   ],
-  pont_lev: [
-    // Arrow from food/med → recruit from Cafe
-    {id:'recruit', label:'Reclutar del Café', cost:[{food:1}], reward:'recruit', costAlt:[{med:1}]},
-  ],
-  ultramar: [
-    // Icon: comida → "obtener comida" (no cost)
-    {id:'food', label:'Obtener Comida', cost:[], reward:[{food:1}]},
-  ],
+  // Barrio Bajo: 1 food + 1 med → +1 Moral ⭐ (instant)
   barrio: [
-    // Instant action (orange shield) → +1 moral, no cost
-    {id:'moral_up', label:'Inspirar al barrio (+1 Moral)', cost:[], reward:[{moral:1}], instant:true},
+    {id:'moral_up', label:'Inspirar al barrio (+1 Moral)', cost:[{food:1},{med:1}], reward:[{moral:1}], instant:true},
   ],
+  // Mercado Negro: 1 food OR 1 med → 1 money, -1 moral
   mercado: [
-    // Comida o Medicina → Moneda, -1 Moral (per arrow icon)
-    {id:'market', label:'Comerciar', cost:[{food:1}], reward:[{money:1}], costAlt:[{med:1}], sideEffect:[{moral:-1}]},
+    {id:'market', label:'Comerciar (1 Comida o 1 Medicina → 1 Dinero, -1 Moral)', cost:[{food:1}], reward:[{money:1}], costAlt:[{med:1}], sideEffect:[{moral:-1}]},
   ],
-  valla: [
-    // Icon: arma → "obtener arma" (no cost)
-    {id:'gun', label:'Obtener Armas', cost:[], reward:[{gun:1}]},
+  // Ultramarinos: +1 food
+  ultramar: [
+    {id:'food', label:'+1 Comida', cost:[], reward:[{food:1}]},
   ],
-  pont_n: [
-    // Icon: bomba → "obtener explosivos" (no cost)
-    {id:'bomb', label:'Obtener Explosivos', cost:[], reward:[{bomb:1}]},
-  ],
-  rue: [
-    // Some maps have Rue as alternative weapons source — kept for completeness
-    {id:'gun', label:'Obtener Armas', cost:[], reward:[{gun:1}]},
+  // Pont Lévêque: no action (per user rules)
+  pont_lev: [],
+  // Café: 1 food → reclutar 1 hombre del Café
+  cafe: [
+    {id:'recruit', label:'Reclutar 1 trabajador (1 Comida)', cost:[{food:1}], reward:'recruit'},
   ],
 };
 
 // Special positions: instant action (shield)
-const INSTANT = {barrio:true};
+// Per user rules: ⭐ (instant) → Valla, Barrio Bajo, Piso Franco (cuando ocupado)
+const INSTANT = {
+  valla: true,    // 1 money → 1 gun (instant, keep reward even if arrested)
+  barrio: true,   // 1 food + 1 med → +1 moral (instant)
+};
 
 // Patrol deck — 9 cards from the official PDF (Felipe Santamaría edition)
 const PATROL_DECK = [
@@ -931,8 +934,16 @@ const MISSIONS = [
     desc:'Entrega 1 Medicina y 1 Comida a esta ubicación en TRES días separados. Mientras esta misión esté activa, no puedes eliminar Milicianos.',
     success:['1','1','1'],
     successType:'num',
-    initFlags:(f)=>{ f.gs_days=new Set(); f.gs_no_kill_today=true; },
-    check:(g)=> (g.missionFlags.gs_days||new Set()).size >= 3,
+    initFlags:(f)=>{ f.gs_days=new Set(); f.gs_failed=false; f.gs_per_day={}; },
+    check:(g)=> {
+      // 3 separate days, each day must have BOTH food AND medicine delivered
+      const pd = g.missionFlags.gs_per_day || {};
+      let count = 0;
+      for (const day in pd) {
+        if (pd[day].food && pd[day].med) count++;
+      }
+      return count >= 3 && !g.missionFlags.gs_failed;
+    },
   },
   {
     id:'underground_newspaper',
@@ -1522,10 +1533,10 @@ function renderBoard() {
     // Make Casa Segura unclickable during placement (already occupied)
     if (L.type === 'safe') div.classList.add('safe-base');
 
-    // actions / shields (subtle indicator)
-    const acts = actionsFor(L);
-    if (acts.length) {
-      div.innerHTML += `<div class="acts">${acts}</div>`;
+    // The map artwork already shows action icons — we don't duplicate them here.
+    // Only show the instant-action shield (orange star) for Barrio Bajo.
+    if (INSTANT[L.id]) {
+      div.innerHTML += `<div class="acts"><div class="atoken shield">★</div></div>`;
     }
 
     // Special: Casa Segura shows home pawns (workers in reserve)
@@ -1796,23 +1807,6 @@ function placeOnePatrol() {
 function handleAction(locId) {
   const L = LOCATIONS.find(l=>l.id===locId);
 
-  // Cafe: recruit if pawn present (no resource cost? actually cost 1 money)
-  if (L.type==='cafe') {
-    // If we have a pawn at cafe, we can recruit from cafePawns
-    if (G.cafePawns>0 && (G.resources.money||0)>=1 && G.resistancePawns<5) {
-      G.cafePawns--;
-      G.resistancePawns++;
-      G.resources.money--;
-      log(`Reclutas 1 hombre del Café.`);
-      // After recruitment the pawn is still on cafe — but we need to actually return
-    } else {
-      setPrompt('Café: necesitas 1💰 y tener menos de 5 peones.');
-    }
-    // Then try return
-    returnPawn(locId);
-    return;
-  }
-
   if (L.type==='field' && G.airdrops[L.id] && G.airdrops[L.id].length) {
     // Free pickup
     airdropPickup(L.id);
@@ -1954,7 +1948,7 @@ function executeAction(locId, a) {
     if (a.sideEffect) for (const c of a.sideEffect) G.moral = Math.max(0, G.moral + c.moral);
     log(`Acción en ${L.name}: ${a.label}`);
     // Mission triggers
-    triggerMissionEffects(locId, a);
+    triggerMissionEffects(locId, a, cost);
   }
   returnPawn(locId);
   render();
@@ -1993,9 +1987,36 @@ function showAirdropChoice(locId) {
   });
 }
 
-function triggerMissionEffects(locId, a) {
+function triggerMissionEffects(locId, a, cost) {
   const flags = G.missionFlags;
   if (!flags) return;
+  // Ensure commonly-used sets exist so we don't crash on accesses
+  if (!flags.gs_days) flags.gs_days = new Set();
+  if (!flags.gs_per_day) flags.gs_per_day = {};
+  if (!flags.un_days) flags.un_days = new Set();
+  if (!flags._gsDay) flags._gsDay = {};
+  if (!flags._unDay) flags._unDay = {};
+  if (!flags.destroyedBridges) flags.destroyedBridges = new Set();
+  if (!flags.aa_placed) flags.aa_placed = new Set();
+  if (!flags.aa_destroyed) flags.aa_destroyed = new Set();
+  if (!flags.tb_explosives) flags.tb_explosives = 0;
+  if (!flags.train_bombs) flags.train_bombs = 0;
+  if (!flags.assassination_kills) flags.assassination_kills = 0;
+  if (!flags.bo_gun) flags.bo_gun = false;
+  if (!flags.bo_bomb) flags.bo_bomb = false;
+  if (!flags.sab_infiltrations) flags.sab_infiltrations = 0;
+  if (!flags.sab_explosives_delivered) flags.sab_explosives_delivered = false;
+  if (!flags.infiltration_intel) flags.infiltration_intel = 0;
+  if (!flags.infiltration_weapons) flags.infiltration_weapons = false;
+  if (!flags.spy_arms_day) flags.spy_arms_day = null;
+  if (!flags.un_count) flags.un_count = 0;
+  if (!flags.da_done) flags.da_done = false;
+  if (!flags.om_set) flags.om_set = new Set();
+  if (!flags.frl_obj1) flags.frl_obj1 = false;
+  if (!flags.frl_obj2) flags.frl_obj2 = false;
+  if (!flags.mhq_obj1) flags.mhq_obj1 = false;
+  if (!flags.mhq_obj2) flags.mhq_obj2 = false;
+  if (!flags.liberate_done) flags.liberate_done = false;
 
   // Find the active mission that has THIS location as its mission spot.
   // For our model: the "mission location" is approximated as follows.
@@ -2073,15 +2094,24 @@ function triggerMissionEffects(locId, a) {
     }
   }
 
-  // ===== GERMAN SHEPHERDS — 1 medicine + 1 food at the mission location, 3 separate days
-  // Mission location is Pont Lévêque (we use pont_lev as the spot).
-  // We accept food/medicine actions at pont_lev; each day with both = one day counted.
-  if (locId === 'pont_lev') {
-    if (a.id === 'recruit' || (a.reward && a.reward[0] && (a.reward[0].food || a.reward[0].med))) {
-      // Track that today had delivery
-      if (!flags._gsDay) flags._gsDay = {};
-      flags._gsDay[G.day] = (flags._gsDay[G.day] || 0) + 1;
-      if (flags._gsDay[G.day] >= 2) flags.gs_days.add(G.day);
+  // ===== GERMAN SHEPHERDS — 1 medicine AND 1 food at Pont Lévêque, in 3 separate days.
+  // The "delivery" happens when you pay food OR medicine at Pont Lévêque during recruit action.
+  if (locId === 'pont_lev' && a.id === 'recruit') {
+    // Which resource did we pay?
+    let paidFood = false, paidMed = false;
+    for (const c of (cost || [])) {
+      if (c.food) paidFood = true;
+      if (c.med) paidMed = true;
+    }
+    if (paidFood || paidMed) {
+      if (!flags.gs_per_day) flags.gs_per_day = {};
+      if (!flags.gs_per_day[G.day]) flags.gs_per_day[G.day] = {food: false, med: false};
+      if (paidFood) flags.gs_per_day[G.day].food = true;
+      if (paidMed) flags.gs_per_day[G.day].med = true;
+      // If both delivered today, mark the day
+      if (flags.gs_per_day[G.day].food && flags.gs_per_day[G.day].med) {
+        flags.gs_days.add(G.day);
+      }
     }
   }
 
@@ -2459,6 +2489,15 @@ function killMilitia() {
       log(`💥 Miliciano eliminado en ${locName(target.loc)}. +1 soldado, -1 moral.`);
       // Track kill count for Assassination mission
       if (G.missionFlags) G.missionFlags.assassination_kills = (G.missionFlags.assassination_kills||0) + 1;
+      // German Shepherds: killing a militia fails this mission
+      const gsMission = G.missions && G.missions.find(m => m.id === 'german_shepherds');
+      if (gsMission && G.missionFlags) {
+        const days = G.missionFlags.gs_days ? G.missionFlags.gs_days.size : 0;
+        if (days < 3) {
+          G.missionFlags.gs_failed = true;
+          log('⚠️ Has matado un Miliciano — la misión Pastores Alemanes ya no puede completarse.');
+        }
+      }
       render();
     };
   });
