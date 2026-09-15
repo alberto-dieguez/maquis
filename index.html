@@ -289,7 +289,9 @@
   /* Locations (nodes) — invisible hotspots overlaid on map artwork */
   .loc {
     position: absolute;
-    width: 14%; height: 14%;
+    width: 12%;
+    /* Square shape: height = width by aspect-ratio */
+    aspect-ratio: 1 / 1;
     transform: translate(-50%, -50%);
     border-radius: 50%;
     background: rgba(255,255,255,0);
