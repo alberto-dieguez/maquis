@@ -703,13 +703,13 @@ const LOCATIONS = [
   {id:'doctor',  name:'Doctor',       x:35, y:44, type:'town'},
   {id:'barrio',  name:'Barrio Bajo',  x:54, y:43, type:'town'},
   {id:'mercado', name:'Mercado Negro',x:72, y:43, type:'town'},
-  {id:'spare_up',name:'Piso Franco',  x:89, y:54, type:'spare'},
+  {id:'spare_up',name:'Piso Franco',  x:89, y:50, type:'spare'},
   // Lower mid row
   {id:'radio_a', name:'Radio A',      x:15, y:60, type:'radio'},
-  {id:'spare_mid',name:'Piso Franco', x:35, y:69, type:'spare'},
+  {id:'spare_mid',name:'Piso Franco', x:35, y:64, type:'spare'},
   {id:'pont_lev',name:'Pont Lévêque', x:54, y:69, type:'town'},
   {id:'ultramar',name:'Ultramarinos', x:72, y:69, type:'town'},
-  {id:'spare_lo',name:'Piso Franco',  x:89, y:80, type:'spare'},
+  {id:'spare_lo',name:'Piso Franco',  x:89, y:75, type:'spare'},
   // South row
   {id:'campo_l', name:'Campo Izq',    x:14, y:87, type:'field'},
   {id:'cafe',    name:'Café',         x:35, y:84, type:'cafe'},
@@ -1229,28 +1229,35 @@ function airdropPickup(fieldId) {
   delete G.airdrops[fieldId];
 }
 function canReachSafe(fromId) {
-  // BFS from fromId to 'safe' through empty or friendly pawns only
+  // BFS from fromId to 'safe' avoiding only enemy pawns (militia/soldier)
+  // Per rules: "a Worker can only pass through empty locations and locations
+  // occupied by other Resistance Workers". So resistance pawns are PASSABLE.
   const blocked = {};
   G.placedPatrols.forEach(p => blocked[p.loc] = true);
-  G.placedRes.forEach(p => blocked[p.loc] = true);
   // Bomb for Officer: blocked locations (campo_r, spare_lo) can't be used as path
   if (G.blockedLocations) {
     for (const b of G.blockedLocations) blocked[b] = true;
   }
-  // Take Out the Bridges: destroyed bridges = edges to/from destroyed node are blocked
+  // Take Out the Bridges: destroyed bridges can't be used as path
   if (G.destroyedBridges) {
     for (const b of G.destroyedBridges) blocked[b] = true;
   }
   // Milice Parade Day: block Rue Baradat — Valla edge
-  // We treat this by removing the edge from ADJ temporarily
   let adj = ADJ;
   if (G.paradeBlocked) {
     adj = {};
     for (const k in ADJ) adj[k] = [...ADJ[k]];
-    // Remove rue <-> valla connection
     adj.rue = (adj.rue || []).filter(x => x !== 'valla');
     adj.valla = (adj.valla || []).filter(x => x !== 'rue');
   }
+  // NOTE: G.placedRes (resistance pawns) are NOT blocked — they're passable
+  // for OTHER resistance workers returning home.
+  // EXCEPT: a worker cannot pass through its own current location (the worker
+  // is already there, but we start BFS from there). We also need to exclude
+  // the starting worker's location from being considered "occupied" — but it's
+  // already the fromId which we add to the queue directly.
+  // Also need to check if the Worker that is RETURNING is at fromId, which we
+  // start the BFS from, so that worker is implicitly allowed.
   const q = [fromId];
   const seen = {[fromId]:true};
   while (q.length) {
