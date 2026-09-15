@@ -251,22 +251,22 @@
      It only highlights the active day; the painted numbers belong to the map. */
   .day-track {
     position: absolute;
-    left: 12px;
-    top: 22px;
-    bottom: 22px;
-    width: 32px;
-    display: flex; flex-direction: column;
+    left: 1.6%;
+    right: 1.6%;
+    bottom: 1.7%;
+    height: 7.5%;
+    display: grid;
+    grid-template-columns: repeat(15, 1fr);
+    gap: 0;
     z-index: 5;
-    pointer-events: auto;
+    pointer-events: none;
   }
   .day-cell {
-    flex: 1;
     display: flex; align-items: center; justify-content: center;
     font-size: 11px; font-weight: bold;
     color: transparent;
     border-radius: 3px;
-    margin: 1px 0;
-    position: relative;  /* for active pseudo-element */
+    position: relative;
   }
   .day-cell.orange { color: transparent; }
   .day-cell.star { color: transparent; }
@@ -278,7 +278,7 @@
   .day-cell.active::before {
     content: '';
     position: absolute;
-    inset: 3px 4px;   /* small inset to stay within cell */
+    inset: 2px 3px;   /* stays inside the painted day cell */
     border-radius: 4px;
     background: rgba(200,74,58,0.35);
     border: 2px solid #c84a3a;
@@ -1112,7 +1112,7 @@ function newGame(difficultyId) {
   // pick 2 missions (random by default; could allow difficulty filter)
   const ms = [...MISSIONS];
   for (let i=ms.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[ms[i],ms[j]]=[ms[j],ms[i]];}
-  const m1 = ms[0], m2 = ms[1];
+  const m1 = {...ms[0], slot:0}, m2 = {...ms[1], slot:1};
   G = {
     phase:'placement', // placement|action|maintenance|gameover
     day:1,
@@ -1323,6 +1323,7 @@ function placePatrol(card) {
     if (arrestedLoc) {
       // remove resistance pawn
       G.placedRes = G.placedRes.filter(p=>p.loc!==arrestedLoc);
+      G.resistancePawns = Math.max(0, G.resistancePawns - 1);
       G.arrested.push('player');
       // place militia there
       const isSoldier = G.soldiers > G.placedPatrols.filter(p=>p.type==='soldier').length;
@@ -1337,6 +1338,17 @@ function placePatrol(card) {
 }
 
 function locName(id) { return (LOCATIONS.find(l=>l.id===id)||{}).name || id; }
+
+function germanShepherdTarget() {
+  const m = G && G.missions ? G.missions.find(x => x.id === 'german_shepherds') : null;
+  if (!m) return null;
+  return m.slot === 0 ? 'valla' : 'pont_n';
+}
+
+function germanShepherdDone() {
+  return !!(G && G.missionFlags && G.missionFlags.gs_days &&
+             G.missionFlags.gs_days.size >= 3 && !G.missionFlags.gs_failed);
+}
 
 // ---------- Render ----------
 function render() {
@@ -1386,7 +1398,11 @@ function render() {
   G.missions.forEach((m,i) => {
     const n=i+1;
     document.getElementById(`m${n}-title`).textContent = m.title;
-    document.getElementById(`m${n}-desc`).textContent = m.desc;
+    let missionDesc = m.desc;
+    if (m.id === 'german_shepherds') {
+      missionDesc += ` · Ubicación: ${m.slot === 0 ? 'Valla' : 'Pont du Nord'}.`;
+    }
+    document.getElementById(`m${n}-desc`).textContent = missionDesc;
     const done = G.missionSuccess[m.id] || [];
     document.getElementById(`m${n}-success`).innerHTML = m.success.map((s,j)=>{
       const cls = done[j]?'success-box done num':'success-box num';
@@ -1409,7 +1425,7 @@ function render() {
   const dt = document.getElementById('day-track');
   dt.innerHTML = dayOrder.map(d=>{
     let cls = 'day-cell';
-    if (d===G.day) cls += ' active';
+    if (d===G.day && d !== 'FIN') cls += ' active';
     if (orangeDays.includes(d)) cls += ' orange';
     if (starDays.includes(d)) cls += ' star';
     return `<div class="${cls}">${d}</div>`;
@@ -1827,9 +1843,16 @@ function handleAction(locId) {
     }
   }
 
+  // Pastores Alemanes: la ubicación depende de si la misión está a la izquierda o derecha.
+  if (G.missions.some(m => m.id === 'german_shepherds') &&
+      !germanShepherdDone() && locId === germanShepherdTarget()) {
+    handleGermanShepherdAction(locId);
+    return;
+  }
+
   const acts = ACTIONS[L.id];
-  if (!acts) {
-    setPrompt('No hay acción aquí. Regresando...');
+  // Si el lugar no tiene acción, vuelve automáticamente: sin modal ni segundo clic.
+  if (!acts || acts.length === 0) {
     returnPawn(locId);
     return;
   }
@@ -1868,6 +1891,57 @@ function showSpareChoices(locId) {
       G.actionUsedThisTurn[locId] = true;
       log(`Piso Franco ocupado: ${opts.find(o=>o.id===id).name} en ${locName(locId)}`);
       closeModal();
+      returnPawn(locId);
+      render();
+    };
+  });
+}
+
+function handleGermanShepherdAction(locId) {
+  const day = G.day;
+  const pd = G.missionFlags.gs_per_day || {};
+
+  if (pd[day] && pd[day].food && pd[day].med) {
+    setPrompt('Pastores Alemanes: ya entregaste hoy. El trabajador vuelve a Casa Segura.');
+    returnPawn(locId);
+    return;
+  }
+
+  if ((G.resources.food||0) < 1 || (G.resources.med||0) < 1) {
+    setPrompt('Pastores Alemanes: necesitas 1 Comida y 1 Medicina.');
+    returnPawn(locId);
+    return;
+  }
+
+  modal(`<h3>🐕 Pastores Alemanes</h3>
+    <p>Entregar <b>1 🍞 Comida + 1 💊 Medicina</b> en <b>${locName(locId)}</b>.</p>
+    <p>Debe hacerse en <b>3 días diferentes</b>.</p>
+    <div class="opts">
+      <button data-id="deliver" class="primary">Entregar recursos</button>
+      <button data-id="cancel" style="background:#c84a3a;color:white;">Cancelar</button>
+    </div>`);
+
+  document.querySelectorAll('#modal-content button').forEach(b => {
+    b.onclick = () => {
+      const id = b.dataset.id;
+      closeModal();
+      if (id === 'cancel') {
+        returnPawn(locId);
+        return;
+      }
+
+      G.resources.food--;
+      G.resources.med--;
+      G.actionUsedThisTurn[locId] = true;
+
+      if (!G.missionFlags.gs_per_day) G.missionFlags.gs_per_day = {};
+      G.missionFlags.gs_per_day[day] = {food:true, med:true};
+      if (!G.missionFlags.gs_days) G.missionFlags.gs_days = new Set();
+      G.missionFlags.gs_days.add(day);
+
+      log(`🐕 Pastores Alemanes: entregados 1 Comida + 1 Medicina en ${locName(locId)} (día ${day}).`);
+      for (const m of G.missions) tryMarkMission(m.id);
+
       returnPawn(locId);
       render();
     };
@@ -2266,6 +2340,7 @@ function returnPawn(locId) {
   if (!reached && !isInstant) {
     // Arrested — animate arrest
     G.placedRes = G.placedRes.filter(p=>p.loc!==locId);
+    G.resistancePawns = Math.max(0, G.resistancePawns - 1);
     G.arrested.push('player');
     log(`¡Peón ARRESTADO en ${locName(locId)} al intentar volver!`);
     queueAnim('arrest');
@@ -2345,8 +2420,8 @@ function promptDestroyBridge() {
 
 function checkGameOver() {
   if (G.gameOver) return;
-  if (G.arrested.length >= G.resistancePawns + G.cafePawns) {
-    // last pawn arrested
+  if ((G.resistancePawns + G.cafePawns) <= 0) {
+    // no playable workers remain
     G.gameOver = true; G.win = false;
     setTimeout(showGameOver, 200);
   }
@@ -2464,6 +2539,11 @@ function advanceDay() {
 
 function killMilitia() {
   if (G.killUsedThisTurn) return;
+  const gsMission = G.missions && G.missions.find(m => m.id === 'german_shepherds');
+  if (gsMission && !germanShepherdDone()) {
+    setPrompt('Pastores Alemanes: no puedes eliminar Milicianos mientras la misión esté activa.');
+    return;
+  }
   if ((G.resources.gun||0)<1) { setPrompt('No tienes Armas.'); return; }
   // Show list of militia to kill
   const ms = G.placedPatrols.filter(p=>p.type==='militia');
@@ -2489,15 +2569,6 @@ function killMilitia() {
       log(`💥 Miliciano eliminado en ${locName(target.loc)}. +1 soldado, -1 moral.`);
       // Track kill count for Assassination mission
       if (G.missionFlags) G.missionFlags.assassination_kills = (G.missionFlags.assassination_kills||0) + 1;
-      // German Shepherds: killing a militia fails this mission
-      const gsMission = G.missions && G.missions.find(m => m.id === 'german_shepherds');
-      if (gsMission && G.missionFlags) {
-        const days = G.missionFlags.gs_days ? G.missionFlags.gs_days.size : 0;
-        if (days < 3) {
-          G.missionFlags.gs_failed = true;
-          log('⚠️ Has matado un Miliciano — la misión Pastores Alemanes ya no puede completarse.');
-        }
-      }
       render();
     };
   });
@@ -2509,7 +2580,7 @@ function showHelp() {
     <p><b>Turno:</b> Colocación → Acción → Mantenimiento.</p>
     <p><b>Colocación:</b> Coloca peones en lugares libres. Tras cada peón tuyo se coloca una patrulla (alternando).</p>
     <p><b>Acción:</b> Toca tus peones para activar la acción del lugar. Luego intenta volver a Casa Segura por camino despejado.</p>
-    <p><b>Si el camino está bloqueado</b> por milicianos/soldados → tu peón es arrestado (¡fuera del juego!).</p>
+    <p><b>Si el camino está bloqueado</b> por milicianos/soldados → tu peón es arrestado y queda fuera del juego.</p>
     <p><b>Escudo naranja ★</b>: la acción es instantánea (no necesitas volver).</p>
     <p><b>Matanza:</b> Gasta 1🔫 para eliminar 1 miliciano (no soldado). Sube +1 marcador de soldados, baja -1 moral.</p>
     <p><b>Pisos Francos:</b> Gasta 2💰 para ocupar uno con un especialista permanente.</p>
