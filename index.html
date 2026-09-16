@@ -278,11 +278,10 @@
   .day-cell.active::before {
     content: '';
     position: absolute;
-    inset: 3px 4px;   /* small inset to stay within cell */
+    inset: 2px 3px;   /* small inset to stay within cell */
     border-radius: 4px;
-    background: rgba(200,74,58,0.35);
+    background: rgba(200,74,58,0.45);
     border: 2px solid #c84a3a;
-    box-shadow: 0 0 8px rgba(200,74,58,0.6);
     pointer-events: none;
   }
 
@@ -1842,8 +1841,10 @@ function handleAction(locId) {
   if (gsMission && G.missionCardPositions && G.missionCardPositions['german_shepherds']) {
     const cardLoc = G.missionCardPositions['german_shepherds'] === 'left' ? 'valla' : 'pont_n';
     if (locId === cardLoc) {
+      // 3 options: deliver food alone, deliver med alone, or deliver BOTH at once
       contextualActs.push({id:'gs_food', label:'Entregar 1 Comida (Pastor Alemán)', cost:[{food:1}], reward:[], _context:'gs'});
       contextualActs.push({id:'gs_med', label:'Entregar 1 Medicina (Pastor Alemán)', cost:[{med:1}], reward:[], _context:'gs'});
+      contextualActs.push({id:'gs_both', label:'Entregar Comida + Medicina (1 día)', cost:[{food:1},{med:1}], reward:[], _context:'gs'});
     }
   }
   if ((!acts || acts.length === 0) && contextualActs.length === 0) {
@@ -1902,6 +1903,7 @@ function showActionChoices(locId, acts) {
     if (locId === cardLoc) {
       contextualActs.push({id:'gs_food', label:'Entregar 1 Comida (Pastor Alemán)', cost:[{food:1}], reward:[], _context:'gs'});
       contextualActs.push({id:'gs_med', label:'Entregar 1 Medicina (Pastor Alemán)', cost:[{med:1}], reward:[], _context:'gs'});
+      contextualActs.push({id:'gs_both', label:'Entregar Comida + Medicina (1 día)', cost:[{food:1},{med:1}], reward:[], _context:'gs'});
     }
   }
   // Only show contextual acts if they're relevant to this location
@@ -1965,7 +1967,10 @@ function executeAction(locId, a) {
     return;
   }
   pay(cost);
-  G.actionUsedThisTurn[locId] = true;
+  // Context actions (Pastor Alemán delivery) don't block other actions at the same location
+  if (!a._context) {
+    G.actionUsedThisTurn[locId] = true;
+  }
 
   // Reward
   if (a.reward==='airdrop') {
