@@ -1275,6 +1275,14 @@ function canReachSafe(fromId) {
   if (G.destroyedBridges) {
     for (const b of G.destroyedBridges) blocked[b] = true;
   }
+  // Protector (in Spare Room): this location acts as a 2nd Casa Segura
+  // For path-finding purposes, if any spare location has 'protector', it's a goal.
+  const goals = new Set(['safe']);
+  if (G.spareTiles) {
+    for (const locId in G.spareTiles) {
+      if (G.spareTiles[locId] === 'protector') goals.add(locId);
+    }
+  }
   // Milice Parade Day: block Rue Baradat — Valla edge
   let adj = ADJ;
   if (G.paradeBlocked) {
@@ -1283,19 +1291,11 @@ function canReachSafe(fromId) {
     adj.rue = (adj.rue || []).filter(x => x !== 'valla');
     adj.valla = (adj.valla || []).filter(x => x !== 'rue');
   }
-  // NOTE: G.placedRes (resistance pawns) are NOT blocked — they're passable
-  // for OTHER resistance workers returning home.
-  // EXCEPT: a worker cannot pass through its own current location (the worker
-  // is already there, but we start BFS from there). We also need to exclude
-  // the starting worker's location from being considered "occupied" — but it's
-  // already the fromId which we add to the queue directly.
-  // Also need to check if the Worker that is RETURNING is at fromId, which we
-  // start the BFS from, so that worker is implicitly allowed.
   const q = [fromId];
   const seen = {[fromId]:true};
   while (q.length) {
     const cur = q.shift();
-    if (cur==='safe') return true;
+    if (goals.has(cur)) return true;
     for (const nb of adj[cur]||[]) {
       if (seen[nb]) continue;
       if (blocked[nb]) continue;
@@ -1900,15 +1900,17 @@ function handleAction(locId) {
 }
 
 function showSpareChoices(locId) {
+  // Per official rules: 6 specialist tiles to choose from
   const opts = [
-    {id:'protector', name:'Casa Segura (Protector)', desc:'Permite una 2ª Casa Segura para regresar.', tile:'🏠'},
-    {id:'recruiter', name:'Reclutador', desc:'Recluta del Café gratis (1/turno).', tile:'👤'},
-    {id:'medic', name:'Médico', desc:'Recupera 1💊 gratis al activarse.', tile:'💊'},
-    {id:'contact', name:'Contacto', desc:'1 acción: 1💰 → 1✉ gratis.', tile:'✉'},
-    {id:'forger', name:'Falsificador', desc:'1 acción: cambia 1 recurso por otro.', tile:'🔄'},
-    {id:'armsdealer', name:'Traficante', desc:'1 acción: 1💰 → 1🔫 gratis.', tile:'🔫'},
+    {id:'informant', name:'Informador', desc:'Gana 1✉ Información gratis.', tile:'🕵️'},
+    {id:'protector', name:'Protector', desc:'Esta ubicación actúa como 2ª Casa Segura para regresar.', tile:'🏠'},
+    {id:'forger', name:'Falsificador', desc:'1 acción: cambia 1 recurso por otro cualquiera.', tile:'📜'},
+    {id:'smuggler', name:'Contrabandista', desc:'Paga 1🍞 Comida para recibir 3🍞/3💊/3✉.', tile:'🐎'},
+    {id:'propagandist', name:'Propagandista', desc:'+1⭐ Moral al activarse.', tile:'📢'},
+    {id:'chemist', name:'Laboratorio Químico', desc:'Recibe 1🧪 Veneno gratis.', tile:'⚗️'},
   ];
   let html = `<h3>Elige especialista para ${locName(locId)}</h3>`;
+  html += `<p style="font-size:12px; color:#5b4636; margin:0 0 8px;">Coste: 2💰 Dinero</p>`;
   html += `<div class="opts">`;
   opts.forEach(o => {
     html += `<button data-id="${o.id}">${o.tile} ${o.name}<br><small>${o.desc}</small></button>`;
@@ -1920,10 +1922,45 @@ function showSpareChoices(locId) {
     b.onclick = () => {
       const id = b.dataset.id;
       if (id==='cancel') { closeModal(); returnPawn(locId); return; }
+      if ((G.resources.money||0) < 2) {
+        closeModal();
+        setPrompt('No tienes suficiente dinero (necesitas 2💰).');
+        returnPawn(locId);
+        return;
+      }
       G.resources.money -= 2;
       G.spareTiles[locId] = id;
       G.actionUsedThisTurn[locId] = true;
       log(`Piso Franco ocupado: ${opts.find(o=>o.id===id).name} en ${locName(locId)}`);
+      // Apply specialist's immediate effect
+      const opt = opts.find(o=>o.id===id);
+      if (id === 'informant') {
+        G.resources.info = (G.resources.info||0) + 1;
+        G.supply.info = Math.max(0, (G.supply.info||0) - 1);
+        log('🕵️ Informador: +1 Información gratis.');
+      } else if (id === 'propagandist') {
+        G.moral = Math.min(14, G.moral + 1);
+        log('📢 Propagandista: +1 Moral.');
+      } else if (id === 'chemist') {
+        G.resources.poison = (G.resources.poison||0) + 1;
+        G.supply.poison = Math.max(0, (G.supply.poison||0) - 1);
+        log('⚗️ Laboratorio Químico: +1 Veneno gratis.');
+      } else if (id === 'protector') {
+        log('🏠 Protector: ahora puedes regresar aquí como Casa Segura.');
+      } else if (id === 'forger') {
+        log('📜 Falsificador: activado (próxima acción puedes cambiar 1 recurso por otro).');
+        G.spareActive = 'forger';
+      } else if (id === 'smuggler') {
+        // For now: just pay food, get 3 of the same
+        if ((G.resources.food||0) >= 1) {
+          G.resources.food -= 1;
+          G.resources.food += 3;
+          log('🐎 Contrabandista: 1🍞 → 3🍞.');
+        } else {
+          log('🐎 Contrabandista: no tienes comida para contrabandear.');
+          G.resources.food = (G.resources.food||0) + 3; // give anyway as refund
+        }
+      }
       closeModal();
       returnPawn(locId);
       render();
@@ -2335,15 +2372,23 @@ function tryMarkMission(id) {
     // Trigger bridge selection modal after current modal closes
     setTimeout(promptDestroyBridge, 100);
   }
-  if (!ok) return;
-  // Mark required number of successes
   if (!G.missionSuccess[id]) {
     G.missionSuccess[id] = m.success.map(_=>false);
   }
-  // Mark all unflagged successes as done (simplified)
-  m.success.forEach((s,j)=>{ G.missionSuccess[id][j]=true; });
-  log(`¡MISIÓN COMPLETADA: ${m.title}!`);
-  checkMissionsDone();
+  // Use progress() if defined to track partial completion
+  if (m.progress) {
+    const p = Math.max(0, m.progress(G));
+    for (let j = 0; j < Math.min(p, m.success.length); j++) {
+      if (!G.missionSuccess[id][j]) G.missionSuccess[id][j] = true;
+    }
+  } else {
+    // Mark all unflagged successes as done (simplified)
+    m.success.forEach((s,j)=>{ G.missionSuccess[id][j]=true; });
+  }
+  if (ok) {
+    log(`¡MISIÓN COMPLETADA: ${m.title}!`);
+    checkMissionsDone();
+  }
 }
 
 function checkMissionsDone() {
