@@ -723,13 +723,15 @@ const LOCATIONS = [
 const EDGES = [
   // South band (Campo ↔ Café ↔ Safe ↔ Campo)
   ['campo_l','cafe'], ['cafe','safe'], ['safe','campo_r'],
-  ['campo_l','radio_a'], // up the west
   ['campo_r','ultramar'], // up the east
   ['cafe','pont_lev'],   // bridge
   ['pont_lev','ultramar'], // bridge
   // Mid band
   ['radio_a','doctor'],
-  ['doctor','barrio'], ['barrio','mercado'],
+  ['radio_a','spare_mid'], // Radio A only connects to Doctor and this Piso Franco
+  ['barrio','mercado'],
+  ['barrio','valla'],
+  ['barrio','pont_lev'],
   ['mercado','spare_up'], ['spare_up','ultramar'],
   ['ultramar','spare_lo'], ['spare_lo','campo_r'],
   // Vertical to river level
@@ -739,7 +741,7 @@ const EDGES = [
   ['pont_n','valla'], ['pont_n','radio_b'],
   ['valla','doctor'], // diagonal up-down
   // West
-  ['rue','doctor'], ['rue','radio_a'],
+  ['rue','doctor'],
 ];
 
 // Adjacency
@@ -937,6 +939,15 @@ const MISSIONS = [
     success:['1','1','1'],
     successType:'num',
     initFlags:(f)=>{ f.gs_days=new Set(); f.gs_failed=false; f.gs_per_day={}; },
+    progress:(g)=> {
+      // Number of separate days with BOTH food AND medicine delivered so far (0-3)
+      const pd = g.missionFlags.gs_per_day || {};
+      let count = 0;
+      for (const day in pd) {
+        if (pd[day].food && pd[day].med) count++;
+      }
+      return count;
+    },
     check:(g)=> {
       // 3 separate days, each day must have BOTH food AND medicine delivered
       const pd = g.missionFlags.gs_per_day || {};
@@ -1398,8 +1409,10 @@ function render() {
     document.getElementById(`m${n}-title`).textContent = m.title;
     document.getElementById(`m${n}-desc`).textContent = m.desc;
     const done = G.missionSuccess[m.id] || [];
+    const filled = m.progress ? m.progress(G) : null;
     document.getElementById(`m${n}-success`).innerHTML = m.success.map((s,j)=>{
-      const cls = done[j]?'success-box done num':'success-box num';
+      const isDone = filled !== null ? (j < filled || done[j]) : done[j];
+      const cls = isDone ?'success-box done num':'success-box num';
       return `<div class="${cls}">${s}</div>`;
     }).join('');
   });
