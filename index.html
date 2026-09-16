@@ -270,7 +270,7 @@
   }
   .day-cell.orange { color: transparent; }
   .day-cell.star { color: transparent; }
-  /* Active day: inlay highlight that fits inside the cell, NOT a border that overflows */
+  /* Active day: just a background highlight, no overflow */
   .day-cell.active {
     color: transparent;
     background: transparent;
@@ -278,7 +278,10 @@
   .day-cell.active::before {
     content: '';
     position: absolute;
-    inset: 2px 3px;   /* small inset to stay within cell */
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     border-radius: 4px;
     background: rgba(200,74,58,0.45);
     border: 2px solid #c84a3a;
@@ -965,7 +968,7 @@ const MISSIONS = [
   {
     id:'officer_mansion',
     title:'Mansión del Oficial',
-    desc:'Coloca un Trabajador en Rue Baradat, Pont Lévêque y Pont du Nord durante la Fase de Acción (pon marcadores para rastrear). Cuando las 3 ubicaciones estén marcadas, coloca un Trabajador AQUÍ para completar.',
+    desc:'Coloca un Trabajador en Rue Baradat, Pont Lévêque y Pont du Nord durante la Fase de Acción. Cuando las 3 ubicaciones estén marcadas, coloca un Trabajador AQUÍ (Mercado Negro) para completar.',
     success:['1'],
     successType:'plain',
     initFlags:(f)=>{ f.om_set=new Set(); },
@@ -1774,6 +1777,29 @@ function onLocClick(id) {
         log(`📜 Mensajes Cifrados: Trabajador colocado en Café el día ${G.day}.`);
       }
     }
+    // Mansión del Oficial: marking Rue/Pont Lévêque/Pont du Nord
+    if (G.missionFlags && ['rue','pont_lev','pont_n'].includes(id)) {
+      const omMission = G.missions.find(m => m.id === 'officer_mansion');
+      if (omMission) {
+        if (!G.missionFlags.om_set) G.missionFlags.om_set = new Set();
+        if (!G.missionFlags.om_set.has(id)) {
+          G.missionFlags.om_set.add(id);
+          log(`🏛️ Mansión del Oficial: ${locName(id)} marcada (${G.missionFlags.om_set.size}/3).`);
+        }
+      }
+    }
+    // Mansión del Oficial: completar al colocar en Mercado Negro
+    if (G.missionFlags && id === 'mercado') {
+      const omMission = G.missions.find(m => m.id === 'officer_mansion');
+      if (omMission) {
+        if (G.missionFlags.om_set && G.missionFlags.om_set.size >= 3) {
+          log('🏛️ Mansión del Oficial: ¡completa!');
+          tryMarkMission('officer_mansion');
+        }
+      }
+    }
+    // Check all missions for completion
+    for (const m of G.missions) tryMarkMission(m.id);
     // After each pawn placement, place exactly one patrol (alternating turns).
     if (G.placedPatrols.length < numPatrols()) {
       placeOnePatrol();
@@ -1841,10 +1867,8 @@ function handleAction(locId) {
   if (gsMission && G.missionCardPositions && G.missionCardPositions['german_shepherds']) {
     const cardLoc = G.missionCardPositions['german_shepherds'] === 'left' ? 'valla' : 'pont_n';
     if (locId === cardLoc) {
-      // 3 options: deliver food alone, deliver med alone, or deliver BOTH at once
-      contextualActs.push({id:'gs_food', label:'Entregar 1 Comida (Pastor Alemán)', cost:[{food:1}], reward:[], _context:'gs'});
-      contextualActs.push({id:'gs_med', label:'Entregar 1 Medicina (Pastor Alemán)', cost:[{med:1}], reward:[], _context:'gs'});
-      contextualActs.push({id:'gs_both', label:'Entregar Comida + Medicina (1 día)', cost:[{food:1},{med:1}], reward:[], _context:'gs'});
+      // Per rules: must deliver BOTH food AND medicine to count the day
+      contextualActs.push({id:'gs_both', label:'Entregar Comida + Medicina (cuenta 1 día)', cost:[{food:1},{med:1}], reward:[], _context:'gs'});
     }
   }
   if ((!acts || acts.length === 0) && contextualActs.length === 0) {
@@ -1901,9 +1925,7 @@ function showActionChoices(locId, acts) {
   if (gsMission && G.missionCardPositions && G.missionCardPositions['german_shepherds']) {
     const cardLoc = G.missionCardPositions['german_shepherds'] === 'left' ? 'valla' : 'pont_n';
     if (locId === cardLoc) {
-      contextualActs.push({id:'gs_food', label:'Entregar 1 Comida (Pastor Alemán)', cost:[{food:1}], reward:[], _context:'gs'});
-      contextualActs.push({id:'gs_med', label:'Entregar 1 Medicina (Pastor Alemán)', cost:[{med:1}], reward:[], _context:'gs'});
-      contextualActs.push({id:'gs_both', label:'Entregar Comida + Medicina (1 día)', cost:[{food:1},{med:1}], reward:[], _context:'gs'});
+      contextualActs.push({id:'gs_both', label:'Entregar Comida + Medicina (cuenta 1 día)', cost:[{food:1},{med:1}], reward:[], _context:'gs'});
     }
   }
   // Only show contextual acts if they're relevant to this location
