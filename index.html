@@ -705,13 +705,13 @@ const LOCATIONS = [
   {id:'doctor',  name:'Doctor',       x:35, y:44, type:'town'},
   {id:'barrio',  name:'Barrio Bajo',  x:54, y:43, type:'town'},
   {id:'mercado', name:'Mercado Negro',x:72, y:43, type:'town'},
-  {id:'spare_up',name:'Piso Franco',  x:89, y:50, type:'spare'},
+  {id:'spare_rb',name:'Piso Franco (Radio B)', x:89, y:50, type:'spare'},
   // Lower mid row
   {id:'radio_a', name:'Radio A',      x:15, y:60, type:'radio'},
-  {id:'spare_mid',name:'Piso Franco', x:35, y:64, type:'spare'},
+  {id:'spare_doc',name:'Piso Franco (Doctor)', x:35, y:64, type:'spare'},
   {id:'pont_lev',name:'Pont Lévêque', x:54, y:75, type:'town'},
   {id:'ultramar',name:'Ultramarinos', x:72, y:69, type:'town'},
-  {id:'spare_lo',name:'Piso Franco',  x:89, y:75, type:'spare'},
+  {id:'spare_ul',name:'Piso Franco (Ultramarinos)', x:89, y:75, type:'spare'},
   // South row
   {id:'campo_l', name:'Campo Izq',    x:14, y:87, type:'field'},
   {id:'cafe',    name:'Café',         x:35, y:84, type:'cafe'},
@@ -719,29 +719,36 @@ const LOCATIONS = [
   {id:'campo_r', name:'Campo Der',    x:72, y:87, type:'field'},
 ];
 
-// Edges — bidirectional paths. Drawn as SVG (currently hidden — map shows them).
+// Edges — bidirectional paths. Per user-provided connection table.
 const EDGES = [
-  // South band (Campo ↔ Café ↔ Safe ↔ Campo)
-  ['campo_l','cafe'], ['cafe','safe'], ['safe','campo_r'],
-  ['campo_r','ultramar'], // up the east
-  ['cafe','pont_lev'],   // bridge
-  ['pont_lev','ultramar'], // bridge
-  // Mid band
-  ['radio_a','doctor'],
-  ['radio_a','spare_mid'], // Radio A only connects to Doctor and this Piso Franco
-  ['barrio','mercado'],
-  ['barrio','valla'],
-  ['barrio','pont_lev'],
-  ['mercado','spare_up'], ['spare_up','ultramar'],
-  ['ultramar','spare_lo'], ['spare_lo','campo_r'],
-  // Vertical to river level
-  ['doctor','spare_mid'], ['spare_mid','pont_lev'],
-  // Mid-upper to top
-  ['barrio','pont_n'], ['mercado','radio_b'],
-  ['pont_n','valla'], ['pont_n','radio_b'],
-  ['valla','doctor'], // diagonal up-down
-  // West
-  ['rue','doctor'],
+  // Rue Baradat ↔ Valla, Doctor
+  ['rue','valla'], ['rue','doctor'],
+  // Valla ↔ Rue, Barrio Bajo, Pont Lévêque (mission_left is just a visual placeholder)
+  ['valla','barrio'], ['valla','pont_lev'],
+  // Doctor ↔ Rue, Radio A, Piso Franco (Doctor), Pont Lévêque
+  ['doctor','radio_a'], ['doctor','spare_doc'], ['doctor','pont_lev'],
+  // Piso Franco (Doctor) ↔ Doctor, Radio A
+  ['spare_doc','radio_a'],
+  // Barrio Bajo ↔ Valla, Pont du Nord, Mercado Negro, Pont Lévêque
+  ['barrio','pont_n'], ['barrio','mercado'],
+  // Pont du Nord ↔ Barrio Bajo, Mercado Negro
+  ['pont_n','mercado'],
+  // Mercado Negro ↔ Pont du Nord, Barrio Bajo, Radio B, Ultramarinos, Piso Franco (Radio B)
+  ['mercado','radio_b'], ['mercado','ultramar'], ['mercado','spare_rb'],
+  // Radio B ↔ Mercado Negro, Piso Franco (Radio B)
+  ['radio_b','spare_rb'],
+  // Piso Franco (Radio B) — leaf node (only Radio B connects to it)
+  // Pont Lévêque ↔ Barrio Bajo, Doctor, Casa Segura
+  ['pont_lev','safe'],
+  // Ultramarinos ↔ Mercado Negro, Piso Franco (Ultramarinos), Casa Segura
+  ['ultramar','spare_ul'], ['ultramar','safe'],
+  // Piso Franco (Ultramarinos) — leaf node
+  // Café ↔ Campo Izq, Casa Segura
+  ['cafe','campo_l'], ['cafe','safe'],
+  // Casa Segura ↔ Café, Campo Der, Ultramarinos, Pont Lévêque
+  ['safe','campo_r'],
+  // Campo Izq — leaf (Café only)
+  // Campo Der — leaf (Casa Segura only)
 ];
 
 // Adjacency
@@ -1267,7 +1274,7 @@ function canReachSafe(fromId) {
   // occupied by other Resistance Workers". So resistance pawns are PASSABLE.
   const blocked = {};
   G.placedPatrols.forEach(p => blocked[p.loc] = true);
-  // Bomb for Officer: blocked locations (campo_r, spare_lo) can't be used as path
+  // Bomb for Officer: blocked locations (campo_r, spare_ul) can't be used as path
   if (G.blockedLocations) {
     for (const b of G.blockedLocations) blocked[b] = true;
   }
@@ -1900,21 +1907,28 @@ function handleAction(locId) {
 }
 
 function showSpareChoices(locId) {
-  // Per official rules: 6 specialist tiles to choose from
-  const opts = [
-    {id:'informant', name:'Informador', desc:'Gana 1✉ Información gratis.', tile:'🕵️'},
-    {id:'protector', name:'Protector', desc:'Esta ubicación actúa como 2ª Casa Segura para regresar.', tile:'🏠'},
-    {id:'forger', name:'Falsificador', desc:'1 acción: cambia 1 recurso por otro cualquiera.', tile:'📜'},
-    {id:'smuggler', name:'Contrabandista', desc:'Paga 1🍞 Comida para recibir 3🍞/3💊/3✉.', tile:'🐎'},
-    {id:'propagandist', name:'Propagandista', desc:'+1⭐ Moral al activarse.', tile:'📢'},
-    {id:'chemist', name:'Laboratorio Químico', desc:'Recibe 1🧪 Veneno gratis.', tile:'⚗️'},
+  // Per official rules: 6 specialist tiles, all unique (3 Spare Rooms only).
+  // Show only those not yet used in other spare locations.
+  const allOpts = [
+    {id:'informant', name:'Informador', desc:'Gratis: gana 1 Información.', tile:'🕵️', cost:[], reward:[{info:1}]},
+    {id:'protector', name:'Protector', desc:'Gratis: esta ubicación actúa como 2ª Casa Segura.', tile:'🏠', cost:[]},
+    {id:'forger', name:'Falsificador', desc:'Gratis: recibes 1 Dinero.', tile:'📜', cost:[], reward:[{money:1}]},
+    {id:'smuggler', name:'Contrabandista', desc:'Gratis: recibes 3 Medicinas o 3 Comidas.', tile:'🐎', cost:[], reward:[{med:3,food:3}]},
+    {id:'propagandist', name:'Propagandista', desc:'Gratis ★ +1 Moral (instantáneo).', tile:'📢', cost:[], reward:[{moral:1}], instant:true},
+    {id:'chemist', name:'Lab. Químico', desc:'Gratis: pagas 1 Medicina → recibes 1 Bomba.', tile:'⚗️', cost:[{med:1}], reward:[{bomb:1}]},
   ];
+  // Filter out those already used in any Spare Room
+  const opts = allOpts.filter(o => !G._usedSpareTiles || !G._usedSpareTiles.has(o.id));
   let html = `<h3>Elige especialista para ${locName(locId)}</h3>`;
-  html += `<p style="font-size:12px; color:#5b4636; margin:0 0 8px;">Coste: 2💰 Dinero</p>`;
+  html += `<p style="font-size:12px; color:#5b4636; margin:0 0 8px;">(Cada ficha solo puede construirse una vez en toda la partida)</p>`;
   html += `<div class="opts">`;
-  opts.forEach(o => {
-    html += `<button data-id="${o.id}">${o.tile} ${o.name}<br><small>${o.desc}</small></button>`;
-  });
+  if (opts.length === 0) {
+    html += `<p style="font-size:13px;">No quedan fichas disponibles — todas fueron usadas en otros Pisos Francos.</p>`;
+  } else {
+    opts.forEach(o => {
+      html += `<button data-id="${o.id}">${o.tile} ${o.name}<br><small>${o.desc}</small></button>`;
+    });
+  }
   html += `<button data-id="cancel" style="background:#c84a3a;color:white;">Cancelar</button>`;
   html += `</div>`;
   modal(html);
@@ -1922,44 +1936,42 @@ function showSpareChoices(locId) {
     b.onclick = () => {
       const id = b.dataset.id;
       if (id==='cancel') { closeModal(); returnPawn(locId); return; }
-      if ((G.resources.money||0) < 2) {
-        closeModal();
-        setPrompt('No tienes suficiente dinero (necesitas 2💰).');
-        returnPawn(locId);
-        return;
-      }
-      G.resources.money -= 2;
-      G.spareTiles[locId] = id;
-      G.actionUsedThisTurn[locId] = true;
-      log(`Piso Franco ocupado: ${opts.find(o=>o.id===id).name} en ${locName(locId)}`);
-      // Apply specialist's immediate effect
+      if (opts.length === 0) { closeModal(); returnPawn(locId); return; }
       const opt = opts.find(o=>o.id===id);
-      if (id === 'informant') {
-        G.resources.info = (G.resources.info||0) + 1;
-        G.supply.info = Math.max(0, (G.supply.info||0) - 1);
-        log('🕵️ Informador: +1 Información gratis.');
-      } else if (id === 'propagandist') {
-        G.moral = Math.min(14, G.moral + 1);
-        log('📢 Propagandista: +1 Moral.');
-      } else if (id === 'chemist') {
-        G.resources.poison = (G.resources.poison||0) + 1;
-        G.supply.poison = Math.max(0, (G.supply.poison||0) - 1);
-        log('⚗️ Laboratorio Químico: +1 Veneno gratis.');
-      } else if (id === 'protector') {
-        log('🏠 Protector: ahora puedes regresar aquí como Casa Segura.');
-      } else if (id === 'forger') {
-        log('📜 Falsificador: activado (próxima acción puedes cambiar 1 recurso por otro).');
-        G.spareActive = 'forger';
-      } else if (id === 'smuggler') {
-        // For now: just pay food, get 3 of the same
-        if ((G.resources.food||0) >= 1) {
-          G.resources.food -= 1;
-          G.resources.food += 3;
-          log('🐎 Contrabandista: 1🍞 → 3🍞.');
-        } else {
-          log('🐎 Contrabandista: no tienes comida para contrabandear.');
-          G.resources.food = (G.resources.food||0) + 3; // give anyway as refund
+      if (!opt) { closeModal(); returnPawn(locId); return; }
+      // Check cost
+      const cost = opt.cost || [];
+      for (const c of cost) {
+        for (const k in c) {
+          if ((G.resources[k]||0) < c[k]) {
+            closeModal();
+            setPrompt(`No tienes suficiente ${k} para construir esto.`);
+            returnPawn(locId);
+            return;
+          }
         }
+      }
+      // Pay cost
+      for (const c of cost) for (const k in c) G.resources[k] -= c[k];
+      // Apply reward (using standard gain which respects supply)
+      gain(opt.reward || []);
+      // Mark tile as used (so other Spare Rooms can't pick it)
+      G.spareTiles[locId] = id;
+      if (!G._usedSpareTiles) G._usedSpareTiles = new Set();
+      G._usedSpareTiles.add(id);
+      log(`Piso Franco ocupado: ${opt.name} en ${locName(locId)}.`);
+      if (opt.id === 'protector') {
+        log('🏠 Protector: ahora puedes regresar aquí como Casa Segura.');
+      } else if (opt.id === 'propagandist') {
+        log('📢 Propagandista: +1 Moral (instantáneo).');
+      } else if (opt.id === 'chemist') {
+        log('⚗️ Lab. Químico: -1 Medicina, +1 Bomba.');
+      } else if (opt.id === 'informant') {
+        log('🕵️ Informador: +1 Información.');
+      } else if (opt.id === 'forger') {
+        log('📜 Falsificador: +1 Dinero.');
+      } else if (opt.id === 'smuggler') {
+        log('🐎 Contrabandista: +3 Medicinas y +3 Comidas.');
       }
       closeModal();
       returnPawn(locId);
@@ -2357,10 +2369,10 @@ function tryMarkMission(id) {
     if (!ok) {
       G.blockedLocations = G.blockedLocations || new Set();
       G.blockedLocations.add('campo_r');
-      G.blockedLocations.add('spare_lo');
+      G.blockedLocations.add('spare_ul');
     } else {
       G.blockedLocations.delete('campo_r');
-      G.blockedLocations.delete('spare_lo');
+      G.blockedLocations.delete('spare_ul');
     }
   }
 
