@@ -1143,6 +1143,7 @@ function newGame(difficultyId) {
     supply:{food:4,med:4,money:4,info:4,gun:4,bomb:4,poison:4,fakeID:4},
     resistancePawns:diff.startPawns, // active in safe house
     cafePawns:diff.startRecruitable, // recruit
+    totalPawns: diff.startPawns + diff.startRecruitable, // FIXED total ever available — used only for game-over check
     placedRes:[], // locations with resistance pawns this turn
     placedPatrols:[], // patrol pawns placed
     patrolDeck:deck,
@@ -2013,18 +2014,29 @@ function executeAction(locId, a) {
     showAirdropChoice(locId);
     return;
   } else if (a.reward==='recruit') {
-    if (G.cafePawns>0 && G.resistancePawns<5) {
-      G.cafePawns--;
-      G.resistancePawns++;
-      log(`Reclutado del Café. Total peones: ${G.resistancePawns}`);
+    const isInstant = INSTANT[locId];
+    if (isInstant || canReachSafe(locId)) {
+      if (G.cafePawns>0 && G.resistancePawns<5) {
+        G.cafePawns--;
+        G.resistancePawns++;
+        log(`Reclutado del Café. Total peones: ${G.resistancePawns}`);
+      } else {
+        log('No hay hombres disponibles para reclutar.');
+      }
     } else {
-      log('No hay hombres disponibles para reclutar.');
+      log('⚠ Camino bloqueado — el recluta se pierde si el Trabajador es arrestado.');
     }
   } else {
-    gain(a.reward);
-    if (a.sideEffect) for (const c of a.sideEffect) G.moral = Math.max(0, G.moral + c.moral);
-    log(`Acción en ${L.name}: ${a.label}`);
-    // Mission triggers
+    const isInstant = INSTANT[locId];
+    if (isInstant || canReachSafe(locId)) {
+      gain(a.reward);
+      if (a.sideEffect) for (const c of a.sideEffect) G.moral = Math.max(0, G.moral + c.moral);
+      log(`Acción en ${L.name}: ${a.label}`);
+    } else {
+      log(`⚠ Camino bloqueado — la recompensa de "${a.label}" se pierde si el Trabajador es arrestado.`);
+    }
+    // Mission triggers track what was PAID (cost), not the reward, so this
+    // still fires even if the reward above was withheld.
     triggerMissionEffects(locId, a, cost);
   }
   // Visual feedback: brief pause so the user sees the action complete
@@ -2407,6 +2419,10 @@ function arrestPawn(reason) {
     G.moral = Math.max(0, G.moral-1);
     log('Arresto reduce la moral: -1 ★');
   }
+  // Permanent removal: an arrested worker leaves the game for good and can
+  // never be placed again. Shrink the active pool so it isn't counted as
+  // "home in Casa Segura" anymore (see homeCount = resistancePawns - placedRes.length).
+  if (G.resistancePawns > 0) G.resistancePawns--;
 }
 
 function promptDestroyBridge() {
@@ -2432,7 +2448,7 @@ function promptDestroyBridge() {
 
 function checkGameOver() {
   if (G.gameOver) return;
-  if (G.arrested.length >= G.resistancePawns + G.cafePawns) {
+  if (G.arrested.length >= G.totalPawns) {
     // last pawn arrested
     G.gameOver = true; G.win = false;
     setTimeout(showGameOver, 200);
