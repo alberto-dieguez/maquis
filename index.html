@@ -889,6 +889,7 @@ const MISSIONS = [
   },
   {
     id:'coded_messages',
+    workerHere:true,
     title:'Mensajes Cifrados',
     desc:'Un Trabajador debe ser colocado aquí antes del final del Día 6 y permanecer hasta el final del Día 10.',
     success:['1'],
@@ -990,6 +991,7 @@ const MISSIONS = [
   },
   {
     id:'officer_mansion',
+    workerHere:true,
     title:'Mansión del Oficial',
     desc:'Coloca un Trabajador en Rue Baradat, Pont Lévêque y Pont du Nord durante la Fase de Acción. Cuando las 3 ubicaciones estén marcadas, coloca un Trabajador AQUÍ (Mercado Negro) para completar.',
     success:['1'],
@@ -1284,7 +1286,10 @@ function missionIdFromSlot(slotId) {
 }
 function missionAnchor(slotId) { return slotId === 'mission_left' ? 'valla' : (slotId === 'mission_right' ? 'pont_n' : null); }
 function missionCanUseWorker(m) {
-  return ['coded_messages','infiltration','sabotage','bomb_officer','destroy_train','aid_the_spy','take_bridges','german_shepherds','underground_newspaper','officer_mansion','milice_parade_day','destroy_aa_guns','bomb_barracks','milice_hq','free_resistance_leader'].includes(m.id);
+  // A mission card is clickable for worker placement ONLY when its text explicitly
+  // says that a Worker is placed HERE. Missions that say "esta ubicación" use
+  // the board location indicated by the card side (Valla/Pont du Nord) instead.
+  return !!m && m.workerHere === true;
 }
 function availableResistanceWorkers() { return Math.max(0, G.resistancePawns - Object.keys(G.missionWorkers||{}).length); }
 function placedAvailableWorkers() { return G.placedRes.filter(p=>!p.missionId).length; }
@@ -1447,12 +1452,18 @@ function render() {
       return `<div class="${cls}">${ss}</div>`;
     }).join('');
     const card=document.getElementById(`mission${n}`);
-    card.classList.toggle('has-action', missionCanUseWorker(m));
-    card.classList.toggle('mission-active', !!G.missionWorkers[m.id]);
+    const workerHere = missionCanUseWorker(m);
+    card.classList.toggle('has-action', workerHere);
+    card.classList.toggle('mission-active', workerHere && !!G.missionWorkers[m.id]);
     let badge=card.querySelector('.worker-badge');
-    if(!badge){ badge=document.createElement('div'); badge.className='worker-badge'; card.appendChild(badge); }
-    badge.textContent=G.missionWorkers[m.id]?'👤 Trabajador aquí':'👆 Coloca/activa un trabajador aquí';
-    card.onclick=()=>onMissionCardClick(m.id);
+    if (workerHere) {
+      if(!badge){ badge=document.createElement('div'); badge.className='worker-badge'; card.appendChild(badge); }
+      badge.textContent=G.missionWorkers[m.id]?'👤 Trabajador aquí':'👆 Coloca trabajador aquí';
+      card.onclick=()=>onMissionCardClick(m.id);
+    } else {
+      if (badge) badge.remove();
+      card.onclick=null;
+    }
   });
 
   // Arrested / milicia / soldiers
@@ -1806,7 +1817,7 @@ function hasGun() {
 function onMissionCardClick(missionId) {
   if (G.gameOver) return;
   const m=G.missions.find(x=>x.id===missionId);
-  if (!m || !missionCanUseWorker(m)) return;
+  if (!m || m.workerHere !== true) return;
   const slot=missionSlotForMission(missionId);
   if (!slot) return;
   if (G.phase==='placement') {
