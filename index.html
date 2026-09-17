@@ -197,6 +197,9 @@
     display: flex; flex-direction: column;
   }
   .mission h4 { margin: 0 0 4px 0; font-size: 14px; text-align: center; }
+  .mission.has-action { cursor:pointer; }
+  .mission.mission-active { box-shadow: 0 0 0 3px #6b8e4e inset; }
+  .mission .worker-badge { font-size:10px; text-align:center; margin-top:3px; color:#5b4636; }
   .mission .desc { flex: 1; font-size: 11px; line-height: 1.3; }
   .mission .success-row {
     display: flex; gap: 4px; justify-content: center; margin-top: 6px;
@@ -890,7 +893,8 @@ const MISSIONS = [
     desc:'Un Trabajador debe ser colocado aquí antes del final del Día 6 y permanecer hasta el final del Día 10.',
     success:['1'],
     successType:'plain',
-    initFlags:(f)=>{ f.cm_placed_day=null; f.cm_left_day=null; },
+    initFlags:(f)=>{ f.cm_placed_day=null; f.cm_left_day=null; f.cm_worker_present=false; },
+    progress:(g)=> g.missionFlags.cm_left_day !== null ? 1 : 0,
     check:(g)=> {
       const f = g.missionFlags;
       return f.cm_placed_day !== null && f.cm_placed_day <= 6 && f.cm_left_day !== null && f.cm_left_day >= 10;
@@ -924,6 +928,7 @@ const MISSIONS = [
     success:['1','2','3'],
     successType:'num',
     initFlags:(f)=>{ f.sab_infiltrations=0; f.sab_explosives_delivered=false; },
+    progress:(g)=> g.missionFlags.sab_explosives_delivered ? 3 : Math.min(2, g.missionFlags.sab_infiltrations||0),
     check:(g)=> {
       const f = g.missionFlags;
       return f.sab_infiltrations >= 2 && f.sab_explosives_delivered;
@@ -1268,8 +1273,26 @@ function airdropPickup(fieldId) {
   }
   delete G.airdrops[fieldId];
 }
+function missionSlotForMission(missionId) {
+  const side = G.missionCardPositions && G.missionCardPositions[missionId];
+  return side === 'left' ? 'mission_left' : (side === 'right' ? 'mission_right' : null);
+}
+function missionIdFromSlot(slotId) {
+  if (slotId === 'mission_left') return G.missions.find(m=>G.missionCardPositions[m.id]==='left')?.id || null;
+  if (slotId === 'mission_right') return G.missions.find(m=>G.missionCardPositions[m.id]==='right')?.id || null;
+  return null;
+}
+function missionAnchor(slotId) { return slotId === 'mission_left' ? 'valla' : (slotId === 'mission_right' ? 'pont_n' : null); }
+function missionCanUseWorker(m) {
+  return ['coded_messages','infiltration','sabotage','bomb_officer','destroy_train','aid_the_spy','take_bridges','german_shepherds','underground_newspaper','officer_mansion','milice_parade_day','destroy_aa_guns','bomb_barracks','milice_hq','free_resistance_leader'].includes(m.id);
+}
+function availableResistanceWorkers() { return Math.max(0, G.resistancePawns - Object.keys(G.missionWorkers||{}).length); }
+function placedAvailableWorkers() { return G.placedRes.filter(p=>!p.missionId).length; }
+
 function canReachSafe(fromId) {
-  // BFS from fromId to 'safe' avoiding only enemy pawns (militia/soldier)
+  // Mission cards connect to the map through their exit.
+  const startId = missionAnchor(fromId) || fromId;
+  // BFS from the resolved start to 'safe' avoiding only enemy pawns (militia/soldier)
   // Per rules: "a Worker can only pass through empty locations and locations
   // occupied by other Resistance Workers". So resistance pawns are PASSABLE.
   const blocked = {};
@@ -1298,8 +1321,8 @@ function canReachSafe(fromId) {
     adj.rue = (adj.rue || []).filter(x => x !== 'valla');
     adj.valla = (adj.valla || []).filter(x => x !== 'rue');
   }
-  const q = [fromId];
-  const seen = {[fromId]:true};
+  const q = [startId];
+  const seen = {[startId]:true};
   while (q.length) {
     const cur = q.shift();
     if (goals.has(cur)) return true;
@@ -1418,11 +1441,18 @@ function render() {
     document.getElementById(`m${n}-desc`).textContent = m.desc;
     const done = G.missionSuccess[m.id] || [];
     const filled = m.progress ? m.progress(G) : null;
-    document.getElementById(`m${n}-success`).innerHTML = m.success.map((s,j)=>{
+    document.getElementById(`m${n}-success`).innerHTML = m.success.map((ss,j)=>{
       const isDone = filled !== null ? (j < filled || done[j]) : done[j];
       const cls = isDone ?'success-box done num':'success-box num';
-      return `<div class="${cls}">${s}</div>`;
+      return `<div class="${cls}">${ss}</div>`;
     }).join('');
+    const card=document.getElementById(`mission${n}`);
+    card.classList.toggle('has-action', missionCanUseWorker(m));
+    card.classList.toggle('mission-active', !!G.missionWorkers[m.id]);
+    let badge=card.querySelector('.worker-badge');
+    if(!badge){ badge=document.createElement('div'); badge.className='worker-badge'; card.appendChild(badge); }
+    badge.textContent=G.missionWorkers[m.id]?'👤 Trabajador aquí':'👆 Coloca/activa un trabajador aquí';
+    card.onclick=()=>onMissionCardClick(m.id);
   });
 
   // Arrested / milicia / soldiers
@@ -1634,6 +1664,13 @@ function artFor(L) {
 
 function actionsFor(L) {
   let html = '';
+  if (L.type==='spare' && G.spareTiles[L.id]) {
+    if (G.actionUsedThisTurn[locId]) { setPrompt('Ya usaste este Piso Franco este turno.'); returnPawn(locId); return; }
+    const result=specialistAction(locId,G.spareTiles[L.id]);
+    if(result===true){ G.actionUsedThisTurn[locId]=true; returnPawn(locId); render(); return; }
+    if(result==='modal') return;
+  }
+
   const acts = ACTIONS[L.id];
   if (acts) {
     acts.forEach(a => {
@@ -1766,6 +1803,55 @@ function hasGun() {
 }
 
 // ---------- Click handlers ----------
+function onMissionCardClick(missionId) {
+  if (G.gameOver) return;
+  const m=G.missions.find(x=>x.id===missionId);
+  if (!m || !missionCanUseWorker(m)) return;
+  const slot=missionSlotForMission(missionId);
+  if (!slot) return;
+  if (G.phase==='placement') {
+    if (G.missionWorkers[missionId]) { setPrompt('Ya hay un trabajador destinado a esta misión.'); return; }
+    if (placedAvailableWorkers() >= availableResistanceWorkers()) { setPrompt('No quedan trabajadores disponibles en la Casa Segura.'); return; }
+    G.placedRes.push({loc:slot, missionId});
+    log(`Colocas un trabajador en ${m.title}.`);
+    if (m.id==='coded_messages') {
+      if (G.missionFlags.cm_placed_day===null || G.missionFlags.cm_placed_day===undefined) G.missionFlags.cm_placed_day=G.day;
+      G.missionWorkers[m.id]={loc:slot,sinceDay:G.day,untilDay:10};
+      G.missionFlags.cm_worker_present=true;
+    }
+    for (const mm of G.missions) tryMarkMission(mm.id);
+    if (G.placedPatrols.length < numPatrols()) placeOnePatrol();
+    while (placedAvailableWorkers() >= availableResistanceWorkers() && G.placedPatrols.length < numPatrols()) placeOnePatrol();
+    render(); return;
+  }
+  if (G.phase==='action') {
+    if (!G.placedRes.some(p=>p.loc===slot)) { setPrompt(G.missionWorkers[missionId]?'El trabajador permanece aquí.':'No hay tu trabajador en esta misión.'); return; }
+    handleMissionAction(missionId,slot); render();
+  }
+}
+function handleMissionAction(missionId,slot) {
+  const f=G.missionFlags, m=G.missions.find(x=>x.id===missionId);
+  if (!m) return;
+  if (m.id==='sabotage') {
+    if ((f.sab_infiltrations||0)<2) {
+      f.sab_infiltrations=(f.sab_infiltrations||0)+1;
+      log(`🕵️ Sabotaje: infiltración ${f.sab_infiltrations}/2.`);
+    } else {
+      if ((G.resources.bomb||0)<1) { setPrompt('Sabotaje: necesitas 1 Explosivo.'); return; }
+      G.resources.bomb--; G.supply.bomb++; f.sab_explosives_delivered=true;
+      log('💣 Sabotaje: Explosivos entregados.');
+    }
+    G.actionUsedThisTurn[slot]=true; tryMarkMission(m.id); returnPawn(slot); return;
+  }
+  if (m.id==='coded_messages') {
+    if (G.day>10) { setPrompt('Mensajes Cifrados ya ha terminado.'); return; }
+    G.actionUsedThisTurn[slot]=true; f.cm_worker_present=true;
+    log('📜 Mensajes Cifrados: el trabajador permanece aquí.');
+    tryMarkMission(m.id); return;
+  }
+  setPrompt(`${m.title}: esta misión aún no tiene su acción interactiva definida.`);
+}
+
 function onLocClick(id) {
   if (G.gameOver) return;
   const L = LOCATIONS.find(l=>l.id===id);
@@ -1778,7 +1864,7 @@ function onLocClick(id) {
     // Place resistance pawn if empty
     const occ = G.placedPatrols.find(p=>p.loc===id) || G.placedRes.find(p=>p.loc===id);
     if (occ) { setPrompt('Esa posición ya está ocupada.'); return; }
-    if (G.placedRes.length >= G.resistancePawns) { setPrompt('Ya has colocado todos tus peones.'); return; }
+    if (placedAvailableWorkers() >= availableResistanceWorkers()) { setPrompt('No quedan trabajadores disponibles en la Casa Segura.'); return; }
     // Check blocked locations (Bomb for Officer)
     if (G.blockedLocations && G.blockedLocations.has(id)) {
       setPrompt('Esta ubicación está bloqueada por una misión.'); return;
@@ -1791,13 +1877,6 @@ function onLocClick(id) {
     log(`Colocas peón en ${L.name}`);
     // Animate: highlight the safe-house pawn that just left
     queueAnim('deploy');
-    // Coded Messages: mark day if placing at café
-    if (id === 'cafe' && G.missionFlags) {
-      if (G.missionFlags.cm_placed_day === null || G.missionFlags.cm_placed_day === undefined) {
-        G.missionFlags.cm_placed_day = G.day;
-        log(`📜 Mensajes Cifrados: Trabajador colocado en Café el día ${G.day}.`);
-      }
-    }
     // Mansión del Oficial: marking Rue/Pont Lévêque/Pont du Nord
     if (G.missionFlags && ['rue','pont_lev','pont_n'].includes(id)) {
       const omMission = G.missions.find(m => m.id === 'officer_mansion');
@@ -1826,7 +1905,7 @@ function onLocClick(id) {
       placeOnePatrol();
     }
     // If no more player pawns to place but patrols remain, place the rest.
-    while (G.placedRes.length >= G.resistancePawns && G.placedPatrols.length < numPatrols()) {
+    while (placedAvailableWorkers() >= availableResistanceWorkers() && G.placedPatrols.length < numPatrols()) {
       placeOnePatrol();
     }
     render();
@@ -1859,6 +1938,8 @@ function placeOnePatrol() {
 
 // ---------- Action phase ----------
 function handleAction(locId) {
+  const missionId=missionIdFromSlot(locId);
+  if (missionId) { handleMissionAction(missionId,locId); return; }
   const L = LOCATIONS.find(l=>l.id===locId);
 
   if (L.type==='field' && G.airdrops[L.id] && G.airdrops[L.id].length) {
@@ -1913,7 +1994,7 @@ function showSpareChoices(locId) {
     {id:'informant', name:'Informador', desc:'Gratis: gana 1 Información.', tile:'🕵️', cost:[], reward:[{info:1}]},
     {id:'protector', name:'Protector', desc:'Gratis: esta ubicación actúa como 2ª Casa Segura.', tile:'🏠', cost:[]},
     {id:'forger', name:'Falsificador', desc:'Gratis: recibes 1 Dinero.', tile:'📜', cost:[], reward:[{money:1}]},
-    {id:'smuggler', name:'Contrabandista', desc:'Gratis: recibes 3 Medicinas o 3 Comidas.', tile:'🐎', cost:[], reward:[{med:3,food:3}]},
+    {id:'smuggler', name:'Contrabandista', desc:'Gratis: elige 3 Medicinas o 3 Comidas.', tile:'🐎', cost:[], reward:'smuggler_choice'},
     {id:'propagandist', name:'Propagandista', desc:'Gratis ★ +1 Moral (instantáneo).', tile:'📢', cost:[], reward:[{moral:1}], instant:true},
     {id:'chemist', name:'Lab. Químico', desc:'Gratis: pagas 1 Medicina → recibes 1 Bomba.', tile:'⚗️', cost:[{med:1}], reward:[{bomb:1}]},
   ];
@@ -1954,7 +2035,7 @@ function showSpareChoices(locId) {
       // Pay cost
       for (const c of cost) for (const k in c) G.resources[k] -= c[k];
       // Apply reward (using standard gain which respects supply)
-      gain(opt.reward || []);
+      if (opt.reward !== 'smuggler_choice') gain(opt.reward || []);
       // Mark tile as used (so other Spare Rooms can't pick it)
       G.spareTiles[locId] = id;
       if (!G._usedSpareTiles) G._usedSpareTiles = new Set();
@@ -1978,6 +2059,25 @@ function showSpareChoices(locId) {
       render();
     };
   });
+}
+
+function specialistAction(locId, tile) {
+  if (tile==='protector') { setPrompt('Protector: este Piso Franco funciona como Casa Segura.'); return true; }
+  if (tile==='informant') { gain([{info:1}]); log('🕵️ Informador: +1 Información.'); return true; }
+  if (tile==='forger') { gain([{money:1}]); log('📜 Falsificador: +1 Dinero.'); return true; }
+  if (tile==='propagandist') { G.moral=Math.min(14,G.moral+1); log('📢 Propagandista: +1 Moral.'); return true; }
+  if (tile==='smuggler') {
+    modal(`<h3>Contrabandista</h3><p>Elige 3 Medicinas o 3 Comidas.</p><div class="opts"><button data-id="med">💊 3 Medicinas</button><button data-id="food">🍞 3 Comidas</button><button data-id="cancel">Cancelar</button></div>`);
+    document.querySelectorAll('#modal-content button').forEach(b=>b.onclick=()=>{
+      const id=b.dataset.id; closeModal(); if(id==='cancel'){ returnPawn(locId); return; }
+      gain([{[id]:3}]); log(`🐎 Contrabandista: +3 ${id==='med'?'Medicinas':'Comidas'}.`); returnPawn(locId); render();
+    }); return 'modal';
+  }
+  if (tile==='chemist') {
+    if((G.resources.med||0)<1){ setPrompt('Lab. Químico: necesitas 1 Medicina.'); return true; }
+    G.resources.med--; G.supply.med++; gain([{bomb:1}]); log('⚗️ Lab. Químico: -1 Medicina, +1 Bomba.'); return true;
+  }
+  return false;
 }
 
 function showActionChoices(locId, acts) {
@@ -2063,7 +2163,7 @@ function executeAction(locId, a) {
     showAirdropChoice(locId);
     return;
   } else if (a.reward==='recruit') {
-    const isInstant = INSTANT[locId];
+    const isInstant = INSTANT[locId] || (LOCATIONS.find(l=>l.id===locId)?.type==='spare' && G.spareTiles[locId]==='propagandist');
     if (isInstant || canReachSafe(locId)) {
       if (G.cafePawns>0 && G.resistancePawns<5) {
         G.cafePawns--;
@@ -2387,19 +2487,20 @@ function tryMarkMission(id) {
   if (!G.missionSuccess[id]) {
     G.missionSuccess[id] = m.success.map(_=>false);
   }
-  // Use progress() if defined to track partial completion
+  // Never mark success boxes unless the mission actually has progress.
   if (m.progress) {
-    const p = Math.max(0, m.progress(G));
-    for (let j = 0; j < Math.min(p, m.success.length); j++) {
-      if (!G.missionSuccess[id][j]) G.missionSuccess[id][j] = true;
-    }
-  } else {
-    // Mark all unflagged successes as done (simplified)
-    m.success.forEach((s,j)=>{ G.missionSuccess[id][j]=true; });
+    const progress = Math.max(0, Math.min(m.success.length, m.progress(G)));
+    for (let j = 0; j < progress; j++) G.missionSuccess[id][j] = true;
+  } else if (ok) {
+    m.success.forEach((ss,j)=>{ G.missionSuccess[id][j]=true; });
   }
   if (ok) {
-    log(`¡MISIÓN COMPLETADA: ${m.title}!`);
-    checkMissionsDone();
+    G._missionLogged = G._missionLogged || {};
+    if (!G._missionLogged[id]) {
+      G._missionLogged[id] = true;
+      log(`¡MISIÓN COMPLETADA: ${m.title}!`);
+      checkMissionsDone();
+    }
   }
 }
 
@@ -2417,7 +2518,7 @@ function checkMissionsDone() {
 
 function returnPawn(locId) {
   // Try to return to safe. If path blocked, pawn arrested (unless INSTANT).
-  const isInstant = INSTANT[locId];
+  const isInstant = INSTANT[locId] || (LOCATIONS.find(l=>l.id===locId)?.type==='spare' && G.spareTiles[locId]==='propagandist');
   const reached = canReachSafe(locId);
   if (!reached && !isInstant) {
     // Arrested — animate arrest
@@ -2505,8 +2606,8 @@ function promptDestroyBridge() {
 
 function checkGameOver() {
   if (G.gameOver) return;
-  if (G.arrested.length >= G.totalPawns) {
-    // last pawn arrested
+  if (G.resistancePawns <= 0) {
+    // no active resistance workers remain
     G.gameOver = true; G.win = false;
     setTimeout(showGameOver, 200);
   }
@@ -2550,17 +2651,28 @@ function nextPhase() {
 }
 
 function advanceDay() {
-  // Remove patrol pawns
   G.placedPatrols = [];
+  const persistent = Object.values(G.missionWorkers||{}).map(w=>w.loc);
   G.placedRes = [];
   G.actionUsedThisTurn = {};
   G.killUsedThisTurn = false;
   G.placementIndex = 0;
   G.day++;
+  // Keep mission workers on the board across days; release them after their deadline.
+  for (const id of Object.keys(G.missionWorkers||{})) {
+    const mw=G.missionWorkers[id];
+    if (mw.untilDay && G.day>mw.untilDay) delete G.missionWorkers[id];
+  }
+  for (const id of Object.keys(G.missionWorkers||{})) {
+    const mw=G.missionWorkers[id];
+    if (mw) G.placedRes.push({loc:mw.loc,missionId:id});
+  }
 
-  // CODED MESSAGES: if a worker is at cafe and we're past day 10, mark as left
-  if (G.missionFlags && G.missionFlags.cm_placed_day && G.day > 10) {
+  // CODED MESSAGES: after finishing day 10, the worker may leave and the mission completes.
+  if (G.missionFlags && G.missionFlags.cm_placed_day !== null && G.day > 10) {
     G.missionFlags.cm_left_day = 10;
+    G.missionFlags.cm_worker_present = false;
+    tryMarkMission('coded_messages');
   }
   // Reset spy per-day tracking for new day
   if (G.missionFlags && G.missionFlags._lastSpyDay !== G.day) {
